@@ -35,5 +35,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261124_221052/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261124_222944",
+    "createdAt": "2026-11-24T22:29:44.241014+00:00",
+    "slot": "manual",
+    "mood": "judai",
+    "title": "जुदाई के ज्वाला",
+    "scriptDialogue": "तोहरा बिन जिए ना सके, हर साँस में तोहर याद बँधल बा। हमार जिगर तोहरा खातिर धड़के, पर तू बिन बिसराइल दगाबाज बनल बाड़ू। जिन्दगी के राह में तोहार बदला के आग लागल बा, हमरो दिल में बुझे ना देब। ईमान के सच्चा यारी छोड़ के, तू काहे रौद्रता में घुटी बइठल बाड़ू? अब देखऽ, जवन तोहरा छोड़ल बिया, ओह जख्म पर हमार बदला के काली स्याही लिख देब।",
+    "caption": "जुदाई के सन्नाटा, बदला के शोर—तोहरा साथ के आखिरी सवाल, का तू भी इहाँ सुन रहल बाड़ू?",
+    "hashtags": [
+      "#BhojpuriDialogue",
+      "#Rangdari",
+      "#Bewafai",
+      "#DesiJazbaat",
+      "#BhojpuriReels",
+      "#ViralReels"
+    ],
+    "researchSource": {
+      "channelName": "AN TECZ",
+      "videoTitle": "Kader Khan | Emotional Dialogue | WhatsApp Status | kader khan dialogue | it's an status |",
+      "videoUrl": "https://www.youtube.com/watch?v=4NBNk4d6iLs",
+      "viewsLabel": "18,412,695 views"
+    },
+    "gapAnalysis": [
+      "पहिला पंक्ति में इमोशन तुरंत नहीं छूता, पहिलका सेकंड से तीव्र भाव जोड़",
+      "दूसरका लाइन में शब्द दोहराव बा, दोहराव हटाके नया शब्द प्रयोग",
+      "पाँचवा लाइन में अंत का असर कमजोर, बदला के काली स्याही के इमेज जोड़के असर बढ़ाव"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261124_222944/final_reel.mp4"
   }
 ]

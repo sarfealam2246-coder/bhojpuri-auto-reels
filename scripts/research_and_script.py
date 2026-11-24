@@ -13,7 +13,7 @@ DATA_DIR = ROOT / "data"
 WORK_DIR = ROOT / "work"
 WORK_DIR.mkdir(parents=True, exist_ok=True)
 
-MOODS = ["rangdari", "bewafai", "comedy", "vafadari", "judai"]
+MOODS = ["rangdari", "bewafai", "judai", "vafadari"]
 
 
 def load_json(path: Path, default):
@@ -33,23 +33,19 @@ def parse_json_safe(text: str) -> dict:
 def analyze_fb_page_reach(history: list) -> dict:
     page_id = os.getenv("FB_PAGE_ID", "").strip()
     token = os.getenv("FB_PAGE_ACCESS_TOKEN", "").strip()
-    summary = {"best_mood": None, "notes": "New page or no reach data yet; using balanced rotation."}
+    summary = {"best_mood": None, "notes": "Balanced high-intensity mood rotation."}
     if not page_id or not token:
         return summary
-
     try:
-        url = f"https://graph.facebook.com/v21.0/{page_id}/posts"
-        params = {
-            "fields": "id,message,created_time,shares,likes.summary(true),comments.summary(true)",
-            "limit": 20,
-            "access_token": token,
-        }
-        r = requests.get(url, params=params, timeout=15)
+        r = requests.get(
+            f"https://graph.facebook.com/v21.0/{page_id}/posts",
+            params={"fields": "id,shares,likes.summary(true),comments.summary(true)", "limit": 20, "access_token": token},
+            timeout=15,
+        )
         if not r.ok:
             return summary
-        posts = r.json().get("data", [])
         mood_scores = {m: 0 for m in MOODS}
-        for p in posts:
+        for p in r.json().get("data", []):
             pid = p.get("id", "")
             likes = p.get("likes", {}).get("summary", {}).get("total_count", 0)
             comments = p.get("comments", {}).get("summary", {}).get("total_count", 0)
@@ -60,18 +56,13 @@ def analyze_fb_page_reach(history: list) -> dict:
                     m = h.get("mood")
                     if m in mood_scores:
                         mood_scores[m] += score
-                    h["reachMetrics"] = {
-                        "views": max(likes * 12, score * 15),
-                        "likes": likes,
-                        "comments": comments,
-                        "shares": shares,
-                    }
+                    h["reachMetrics"] = {"views": max(likes * 12, score * 15), "likes": likes, "comments": comments, "shares": shares}
         best = max(mood_scores, key=lambda k: mood_scores[k])
         if mood_scores[best] > 0:
             summary["best_mood"] = best
-            summary["notes"] = f"Top performing mood on your FB Page: {best} (score {mood_scores[best]})."
-    except Exception as exc:
-        summary["notes"] = f"Reach check skipped safely: {exc}"
+            summary["notes"] = f"Top mood on your Page: {best} (score {mood_scores[best]})."
+    except Exception:
+        pass
     return summary
 
 
@@ -85,29 +76,25 @@ def pick_next_mood(history: list, reach_summary: dict) -> str:
 
 
 def research_top_bhojpuri_video(channels: list, mood: str, used_urls: set) -> dict:
+    queries = {
+        "rangdari": "bhojpuri rangdari attitude dialogue status shorts",
+        "bewafai": "bhojpuri bewafai sad shayari dialogue shorts",
+        "judai": "bhojpuri judai dard bhara dialogue status shorts",
+        "vafadari": "bhojpuri dosti yaari vafadari dialogue shorts",
+    }
     matching = [c for c in channels if c.get("enabled", True) and c.get("category") == mood]
-    pool = matching if matching else [c for c in channels if c.get("enabled", True)]
-    if not pool:
-        pool = [{"name": "Bhojpuri Viral", "youtubeHandleOrUrl": f"bhojpuri {mood} dialogue shorts"}]
-
-    chosen = random.choice(pool)
-    query = chosen.get("youtubeHandleOrUrl", f"bhojpuri {mood} dialogue shorts")
+    chosen = random.choice(matching) if matching else {"name": "Bhojpuri Viral", "youtubeHandleOrUrl": queries[mood]}
+    query = chosen.get("youtubeHandleOrUrl", queries[mood])
     search_target = query if query.startswith("http") else f"ytsearch6:{query}"
 
     best_entry = None
     try:
-        cmd = [
-            sys.executable, "-m", "yt_dlp",
-            "--dump-single-json",
-            "--flat-playlist",
-            "--no-warnings",
-            search_target,
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=35)
+        res = subprocess.run(
+            [sys.executable, "-m", "yt_dlp", "--dump-single-json", "--flat-playlist", "--no-warnings", search_target],
+            capture_output=True, text=True, timeout=35,
+        )
         if res.returncode == 0 and res.stdout.strip():
-            data = json.loads(res.stdout)
-            entries = data.get("entries", []) or []
-            entries = [e for e in entries if e and e.get("url") not in used_urls]
+            entries = [e for e in (json.loads(res.stdout).get("entries") or []) if e and e.get("url") not in used_urls]
             entries.sort(key=lambda e: e.get("view_count") or 0, reverse=True)
             if entries:
                 best_entry = entries[0]
@@ -119,14 +106,12 @@ def research_top_bhojpuri_video(channels: list, mood: str, used_urls: set) -> di
         if not str(vid_url).startswith("http"):
             vid_url = f"https://www.youtube.com/watch?v={best_entry.get('id', '')}"
         views = best_entry.get("view_count") or 0
-        views_label = f"{views:,} views" if views else "Trending Bhojpuri Short"
         return {
             "channelName": best_entry.get("uploader") or chosen.get("name", "Bhojpuri Creator"),
-            "videoTitle": best_entry.get("title") or f"Trending {mood.title()} Dialogue",
+            "videoTitle": best_entry.get("title") or f"Viral {mood.title()} Dialogue",
             "videoUrl": vid_url,
-            "viewsLabel": views_label,
+            "viewsLabel": f"{views:,} views" if views else "Trending Bhojpuri Short",
         }
-
     return {
         "channelName": chosen.get("name", "Bhojpuri Trending"),
         "videoTitle": f"Viral Bhojpuri {mood.title()} Trend",
@@ -137,17 +122,10 @@ def research_top_bhojpuri_video(channels: list, mood: str, used_urls: set) -> di
 
 def get_active_groq_models(groq_key: str) -> list:
     try:
-        r = requests.get(
-            "https://api.groq.com/openai/v1/models",
-            headers={"Authorization": f"Bearer {groq_key}", "User-Agent": "Mozilla/5.0"},
-            timeout=15,
-        )
+        r = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {groq_key}", "User-Agent": "Mozilla/5.0"}, timeout=15)
         if r.ok:
             ids = [m["id"] for m in r.json().get("data", []) if isinstance(m, dict) and m.get("id")]
-            chat_ids = [
-                m for m in ids
-                if not any(bad in m.lower() for bad in ["whisper", "guard", "tts", "orpheus", "playai", "safeguard"])
-            ]
+            chat_ids = [m for m in ids if not any(b in m.lower() for b in ["whisper", "guard", "tts", "orpheus", "playai", "safeguard"])]
             chat_ids.sort(key=lambda x: (0 if "llama" in x.lower() else 1, x))
             if chat_ids:
                 return chat_ids[:6]
@@ -158,24 +136,19 @@ def get_active_groq_models(groq_key: str) -> list:
 
 def get_active_gemini_models(gemini_key: str) -> list:
     try:
-        r = requests.get(
-            f"https://generativelanguage.googleapis.com/v1beta/models?key={gemini_key}",
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=15,
-        )
+        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={gemini_key}", headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
         if r.ok:
-            models = []
-            for m in r.json().get("models", []):
-                methods = m.get("supportedGenerationMethods", [])
-                name = m.get("name", "").replace("models/", "")
-                if "generateContent" in methods and "tts" not in name.lower() and "image" not in name.lower():
-                    models.append(name)
-            models.sort(key=lambda x: (0 if "flash" in x.lower() else 1, x), reverse=False)
+            models = [
+                m["name"].replace("models/", "")
+                for m in r.json().get("models", [])
+                if "generateContent" in m.get("supportedGenerationMethods", []) and "tts" not in m["name"].lower() and "image" not in m["name"].lower()
+            ]
+            models.sort(key=lambda x: (0 if "flash" in x.lower() else 1, x))
             if models:
                 return models[:6]
     except Exception:
         pass
-    return ["gemini-3.0-flash", "gemini-2.5-flash"]
+    return ["gemini-3.0-flash"]
 
 
 def call_llm_auto_rotate(prompt: str) -> dict:
@@ -188,52 +161,40 @@ def call_llm_auto_rotate(prompt: str) -> dict:
             try:
                 r = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {groq_key}",
-                        "Content-Type": "application/json",
-                        "User-Agent": "Mozilla/5.0",
-                    },
+                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
                     json={
                         "model": model,
                         "messages": [
-                            {"role": "system", "content": "You are a viral Bhojpuri Reels scriptwriter. Return ONLY valid JSON."},
+                            {"role": "system", "content": "You are a viral Bhojpuri mass-dialogue Reel writer. Return ONLY valid JSON."},
                             {"role": "user", "content": prompt},
                         ],
-                        "temperature": 0.9,
+                        "temperature": 0.92,
                         "response_format": {"type": "json_object"},
                     },
                     timeout=35,
                 )
                 if r.ok:
-                    content = r.json()["choices"][0]["message"]["content"]
-                    print(f"Success with Groq model: {model}")
-                    return parse_json_safe(content)
-                errors.append(f"Groq {model}: {r.status_code} {r.text[:140]}")
+                    return parse_json_safe(r.json()["choices"][0]["message"]["content"])
+                errors.append(f"Groq {model}: {r.status_code}")
             except Exception as exc:
                 errors.append(f"Groq {model}: {exc}")
 
     if gemini_key:
         for model in get_active_gemini_models(gemini_key):
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 r = requests.post(
-                    url,
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
-                    json={
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9},
-                    },
+                    json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.92}},
                     timeout=35,
                 )
                 if r.ok:
-                    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    print(f"Success with Gemini model: {model}")
-                    return parse_json_safe(text)
-                errors.append(f"Gemini {model}: {r.status_code} {r.text[:140]}")
+                    return parse_json_safe(r.json()["candidates"][0]["content"]["parts"][0]["text"])
+                errors.append(f"Gemini {model}: {r.status_code}")
             except Exception as exc:
                 errors.append(f"Gemini {model}: {exc}")
 
-    raise RuntimeError("No active Groq or Gemini API key succeeded. Details: " + " | ".join(errors))
+    raise RuntimeError("LLM error: " + " | ".join(errors))
 
 
 def main():
@@ -243,43 +204,40 @@ def main():
 
     reach_summary = analyze_fb_page_reach(history)
     mood = pick_next_mood(history, reach_summary)
-
     used_urls = {h.get("researchSource", {}).get("videoUrl", "") for h in history}
     research_source = research_top_bhojpuri_video(config.get("channels", []), mood, used_urls)
 
-    recent_hooks = [f"- ({h.get('mood')}) {h.get('title')}: {h.get('scriptDialogue', '')[:90]}" for h in history[-20:]]
+    recent_hooks = [f"- ({h.get('mood')}) {h.get('title')}: {h.get('scriptDialogue', '')[:80]}" for h in history[-20:]]
     recent_block = "\n".join(recent_hooks) if recent_hooks else "None yet."
 
     prompt = f"""
-Create a 100% ORIGINAL, viral 35-to-50 second Bhojpuri Reel script in mood: "{mood}".
-Reference trending video to beat: "{research_source['videoTitle']}" ({research_source['viewsLabel']}) from "{research_source['channelName']}".
-Facebook Page Reach Insight: {reach_summary['notes']}
+Write an ultra-viral, goosebumps-giving 30-to-40 second BHOJPURI Reel in mood: "{mood}" (NO comedy!).
+Base trend: "{research_source['videoTitle']}" ({research_source['viewsLabel']}) from "{research_source['channelName']}".
 
-STRICT ANTI-REPEAT RULE — DO NOT repeat or copy any story, character name, or dialogue from these recent reels:
+STRICT RULES:
+1. Language MUST be 100% pure, raw, hard-hitting BHOJPURI / Purvanchali (words like: हमरा, तोहरा, रउआ, बाटे, होई, औकात, जिगर, दगाबाज, बदला, यारी, ईमान). NO English words, NO stage directions like "hero laughs", NO character names before dialogue!
+2. Break into 5 short, explosive punch-lines (5-7 seconds each). Scene 1 MUST hit hard in the very first second!
+3. `subtitleText` MUST be the EXACT same Bhojpuri line in Devanagari as `dialogue` (NOT English!).
+4. Each `imagePrompt` MUST describe a hyper-realistic, cinematic, dramatic Indian/Bihar/UP vertical 9:16 photo (e.g., lone man in rain under streetlight, intense angry eyes in dark jeep, broken heart sitting on railway track at dusk, royal village dabang entry in dusty sunset — realistic photography, 8k, no text, no blur).
+5. Anti-repeat: Do NOT repeat anything from:
 {recent_block}
 
-Requirements:
-1. Perform a 10M->50M Viral Gap Analysis: list 3 specific flaws in typical viral videos of this topic and how this script improves the 0-2s hook, emotional/rangdari twist, and ending punch.
-2. Write natural, hard-hitting Bhojpuri dialogue (Devanagari or Hinglish mix that reads super natural in Indian voice) broken into 5 scenes (each scene 6-9 seconds, total ~40 seconds).
-3. Each scene must have a rich, watermark-free vertical 9:16 visual prompt in English for Flux image generation (cinematic Indian/Bihar/UP rural or urban atmosphere, expressive lighting, no text in image).
-4. Provide a catchy Facebook Reel caption in Hindi/Bhojpuri + 6 viral hashtags.
-
-Return strictly this JSON structure:
+Return strictly JSON:
 {{
-  "title": "Short catchy title",
+  "title": "Catchy Bhojpuri Title",
   "mood": "{mood}",
-  "voiceStyle": "Charon",
-  "gapAnalysis": ["bullet 1", "bullet 2", "bullet 3"],
+  "voiceStyle": "{'Aoede' if mood in ('bewafai','judai') else 'Charon'}",
+  "gapAnalysis": ["flaw 1 & fix", "flaw 2 & fix", "flaw 3 & fix"],
   "scenes": [
     {{
       "sceneNumber": 1,
-      "dialogue": "Bhojpuri dialogue line for this scene",
-      "subtitleText": "Short punchy subtitle text",
-      "imagePrompt": "Cinematic 9:16 vertical scene prompt in English, no text, no watermark"
+      "dialogue": "ठेठ भोजपुरी डायलॉग लाइन",
+      "subtitleText": "ठेठ भोजपुरी डायलॉग लाइन",
+      "imagePrompt": "Hyper-realistic dramatic cinematic vertical 9:16 photo..."
     }}
   ],
-  "caption": "Engaging Facebook Reel caption with question hook",
-  "hashtags": ["#BhojpuriReels", "#BhojpuriDialogue", "#DesiSwag", "#ViralReels", "#Bihar", "#UP"]
+  "caption": "दमदार भोजपुरी/हिंदी कैप्शन + कमेंट सवाल",
+  "hashtags": ["#BhojpuriDialogue", "#Rangdari", "#Bewafai", "#DesiJazbaat", "#BhojpuriReels", "#ViralReels"]
 }}
 """
     plan = call_llm_auto_rotate(prompt)
@@ -292,7 +250,7 @@ Return strictly this JSON structure:
 
     (WORK_DIR / "script_plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     (DATA_DIR / "history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Script generated cleanly: {plan['id']} ({mood})")
+    print(f"Script ready: {plan['id']} ({mood})")
 
 
 if __name__ == "__main__":

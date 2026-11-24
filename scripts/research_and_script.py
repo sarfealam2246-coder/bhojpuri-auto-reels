@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -22,6 +23,11 @@ def load_json(path: Path, default):
         except Exception:
             return default
     return default
+
+
+def parse_json_safe(text: str) -> dict:
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE | re.MULTILINE)
+    return json.loads(cleaned)
 
 
 def analyze_fb_page_reach(history: list) -> dict:
@@ -63,7 +69,7 @@ def analyze_fb_page_reach(history: list) -> dict:
         best = max(mood_scores, key=lambda k: mood_scores[k])
         if mood_scores[best] > 0:
             summary["best_mood"] = best
-            summary["notes"] = f"Top performing mood on your FB Page: {best} (engagement score {mood_scores[best]})."
+            summary["notes"] = f"Top performing mood on your FB Page: {best} (score {mood_scores[best]})."
     except Exception as exc:
         summary["notes"] = f"Reach check skipped safely: {exc}"
     return summary
@@ -132,13 +138,20 @@ def research_top_bhojpuri_video(channels: list, mood: str, used_urls: set) -> di
 def call_llm_auto_rotate(prompt: str) -> dict:
     groq_key = os.getenv("GROQ_API_KEY", "").strip()
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    errors = []
+
+    print(f"Key check -> GROQ present: {bool(groq_key)}, GEMINI present: {bool(gemini_key)}")
 
     if groq_key:
-        for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]:
+        for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]:
             try:
                 r = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                    headers={
+                        "Authorization": f"Bearer {groq_key}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "Mozilla/5.0",
+                    },
                     json={
                         "model": model,
                         "messages": [
@@ -152,16 +165,18 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                 )
                 if r.ok:
                     content = r.json()["choices"][0]["message"]["content"]
-                    return json.loads(content)
-            except Exception:
-                continue
+                    return parse_json_safe(content)
+                errors.append(f"Groq {model}: {r.status_code} {r.text[:160]}")
+            except Exception as exc:
+                errors.append(f"Groq {model}: {exc}")
 
     if gemini_key:
-        for model in ["gemini-2.5-flash", "gemini-2.0-flash"]:
+        for model in ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 r = requests.post(
                     url,
+                    headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9},
@@ -170,11 +185,12 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                 )
                 if r.ok:
                     text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    return json.loads(text)
-            except Exception:
-                continue
+                    return parse_json_safe(text)
+                errors.append(f"Gemini {model}: {r.status_code} {r.text[:160]}")
+            except Exception as exc:
+                errors.append(f"Gemini {model}: {exc}")
 
-    raise RuntimeError("No active Groq or Gemini API key succeeded.")
+    raise RuntimeError("No active Groq or Gemini API key succeeded. Details: " + " | ".join(errors))
 
 
 def main():
@@ -209,7 +225,7 @@ Return strictly this JSON structure:
 {{
   "title": "Short catchy title",
   "mood": "{mood}",
-  "voiceStyle": "Charon" or "Puck" or "Aoede",
+  "voiceStyle": "Charon",
   "gapAnalysis": ["bullet 1", "bullet 2", "bullet 3"],
   "scenes": [
     {{
@@ -232,7 +248,6 @@ Return strictly this JSON structure:
     plan["scriptDialogue"] = " ".join(s.get("dialogue", "") for s in plan.get("scenes", []))
 
     (WORK_DIR / "script_plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
-    # Save updated reach metrics back to history
     (DATA_DIR / "history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Script generated cleanly: {plan['id']} ({mood})")
 

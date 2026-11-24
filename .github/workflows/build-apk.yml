@@ -3,6 +3,9 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,12 +18,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Auto-Unzip & Fix Package Version
+      - name: Auto-Unzip & Commit Project Files
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTO_PAT }}
         run: |
-          if [ ! -f "package.json" ] && ls *.zip 1> /dev/null 2>&1; then
-            unzip -o "*.zip"
+          if [ ! -f "scripts/research_and_script.py" ] && ls *.zip 1> /dev/null 2>&1; then
+            unzip -o "*.zip" -x ".github/workflows/build-apk.yml"
+            sed -i 's/"tweetnacl-sealedbox-js": "\^1.2.2"/"tweetnacl-sealedbox-js": "^1.2.0"/g' package.json
+            if [ -n "$GH_TOKEN" ]; then
+              gh auth setup-git
+              git config user.name "Bhojpuri ReelStudio Bot"
+              git config user.email "bot@users.noreply.github.com"
+              git add -A
+              git diff --staged --quiet || git commit -m "chore: extract project files to main"
+              git push origin HEAD:main
+            fi
           fi
-          sed -i 's/"tweetnacl-sealedbox-js": "\^1.2.2"/"tweetnacl-sealedbox-js": "^1.2.0"/g' package.json
 
       - name: Set up Node 22
         uses: actions/setup-node@v4

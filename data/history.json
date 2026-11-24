@@ -1,1 +1,39 @@
-[]
+[
+  {
+    "id": "reel_20261124_221052",
+    "createdAt": "2026-11-24T22:10:52.409574+00:00",
+    "slot": "manual",
+    "mood": "comedy",
+    "title": "Bhaiya Ka Bindaas Bhandar",
+    "scriptDialogue": "Arey bhai, subah‑subah gaon ke chauraha pe ek hi cheez dikh rahi hai – humra bhai ka ‘bindaas’ bike! Bhai: “Dekha, kaise humari bike se traffic police bhi selfie le rahi hai!” Chhoti behen (whispers): “Bhaiya, asli hero to woh doodh‑wala hai, jo aaj subah 5 baje hi aaya!” Bhai (dramatic): “Hum bhi hero banenge, doodh‑wala ki tarah punctual!” *bike ka engine fail ho jaata* Bhai (laughs): “Arey yaar, hero banna hai to pehle bike ki service karlo, warna doodh‑wala hi champion!” *cow runs past*",
+    "caption": "Gaon ke chauraha pe kaun hai asli hero? 😂👇",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#DesiSwag",
+      "#ViralReels",
+      "#Bihar",
+      "#UP"
+    ],
+    "researchSource": {
+      "channelName": "Harsh gujral",
+      "videoTitle": "Desi Boyfriend - A Standup Comedy Special By Harsh Gujral",
+      "videoUrl": "https://www.youtube.com/watch?v=4Z-KLkjICoY",
+      "viewsLabel": "10,140,284 views"
+    },
+    "gapAnalysis": [
+      "Typical viral hooks start with a vague intro; this script opens with a loud, relatable “Arey bhai, ka ho rahi hai?” that grabs attention in the first 2 seconds",
+      "Many videos rely on predictable punchlines; our script adds an emotional twist where the hero pretends to be a “heroic” milkman and then flips to a self‑deprecating confession, keeping viewers surprised",
+      "Endings often fade out; we close with a rapid, unexpected one‑liner and a visual gag (cow escaping), forcing a replay and share impulse"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261124_221052/final_reel.mp4"
+  }
+]

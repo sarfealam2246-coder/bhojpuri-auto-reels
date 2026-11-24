@@ -1,0 +1,79 @@
+name: 24x7 Bhojpuri Auto-Reel
+
+on:
+  schedule:
+    - cron: '30 3 * * *'   # 09:00 AM IST Daily
+    - cron: '30 14 * * *'  # 07:00 PM IST Daily
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Run slot (morning, evening, manual)'
+        required: false
+        default: 'manual'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg & Devanagari Fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Determine Reel Slot
+        id: slot
+        run: |
+          HOUR_UTC=$(date -u +%H)
+          if [ -n "${{ github.event.inputs.slot }}" ]; then
+            echo "val=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
+          elif [ "$HOUR_UTC" -lt 9 ]; then
+            echo "val=morning" >> $GITHUB_OUTPUT
+          else
+            echo "val=evening" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Research & Write Script
+        env:
+          REEL_SLOT: ${{ steps.slot.outputs.val }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+        run: python scripts/research_and_script.py
+
+      - name: Generate Media & Render FFmpeg Reel
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python scripts/produce_media.py
+
+      - name: Publish to Facebook & Archive Release
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          GH_AUTO_PAT: ${{ secrets.GH_AUTO_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/publish_fb.py
+
+      - name: Commit Updated Permanent History
+        run: |
+          git config user.name "Bhojpuri ReelStudio Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/history.json
+          git diff --staged --quiet || git commit -m "chore: append permanent reel history"
+          git push

@@ -4,9 +4,10 @@ import math
 import os
 import struct
 import subprocess
+import urllib.parse
 import wave
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,36 +16,59 @@ ASSETS_DIR = WORK_DIR / "assets"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def generate_image_cloudflare(prompt: str, out_path: Path, scene_idx: int):
+def generate_real_image(prompt: str, out_path: Path, scene_idx: int):
+    full_prompt = f"{prompt}, hyper realistic 8k cinematic photography, dramatic lighting, sharp focus, vertical 9:16, no text, no watermark"
     acc_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
     token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+
+    # 1. Try Cloudflare Workers AI (handles both JSON base64 and raw PNG bytes)
     if acc_id and token:
         try:
             url = f"https://api.cloudflare.com/client/v4/accounts/{acc_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
             r = requests.post(
                 url,
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={"prompt": f"{prompt}, ultra detailed cinematic lighting, vertical 9:16, no text, no watermark", "num_steps": 6},
-                timeout=45,
+                json={"prompt": full_prompt, "num_steps": 6},
+                timeout=50,
             )
             if r.ok:
-                data = r.json()
-                b64_img = data.get("result", {}).get("image")
-                if b64_img:
-                    out_path.write_bytes(base64.b64decode(b64_img))
+                ctype = r.headers.get("Content-Type", "")
+                if "image/" in ctype:
+                    out_path.write_bytes(r.content)
+                else:
+                    b64_img = r.json().get("result", {}).get("image")
+                    if b64_img:
+                        out_path.write_bytes(base64.b64decode(b64_img))
+                if out_path.exists() and out_path.stat().st_size > 5000:
                     img = Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS)
-                    img.save(out_path, quality=92)
+                    img.save(out_path, quality=94)
+                    print(f"Scene {scene_idx}: Cloudflare Flux OK")
                     return
-        except Exception:
-            pass
+            else:
+                print(f"Cloudflare failed ({r.status_code}): {r.text[:120]}")
+        except Exception as exc:
+            print(f"Cloudflare error: {exc}")
 
-    # Fallback clean dramatic gradient card (never fails)
-    img = Image.new("RGB", (1080, 1920), (20, 28, 48))
+    # 2. Free High-Res Flux Fallback (Pollinations AI - Real cinematic photo!)
+    try:
+        encoded = urllib.parse.quote(full_prompt)
+        p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={scene_idx * 137}"
+        pr = requests.get(p_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=45)
+        if pr.ok and len(pr.content) > 10000:
+            out_path.write_bytes(pr.content)
+            img = Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS)
+            img.save(out_path, quality=94)
+            print(f"Scene {scene_idx}: Pollinations Flux HD OK")
+            return
+    except Exception as exc:
+        print(f"Pollinations fallback error: {exc}")
+
+    # 3. Last-resort dark cinematic vignette (only if offline)
+    img = Image.new("RGB", (1080, 1920), (18, 16, 26))
     draw = ImageDraw.Draw(img)
     for y in range(1920):
-        c1 = int(24 + (y / 1920) * 40)
-        c2 = int(50 + ((scene_idx * 25 + y / 30) % 100))
-        draw.line([(0, y), (1080, y)], fill=(c1, 32, min(220, c2)))
+        c = int(16 + (y / 1920) * 35)
+        draw.line([(0, y), (1080, y)], fill=(c, 18, 32))
     img.save(out_path, quality=90)
 
 
@@ -52,76 +76,83 @@ def generate_voice_gemini(text: str, voice_name: str, out_wav: Path) -> bool:
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not gemini_key or not text.strip():
         return False
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key={gemini_key}"
-        payload = {
-            "contents": [{"parts": [{"text": f"Speak in expressive dramatic Bhojpuri Indian tone: {text}"}]}],
-            "generationConfig": {
-                "responseModalities": ["AUDIO"],
-                "speechConfig": {
-                    "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}
+    for model in ["gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"]:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+            payload = {
+                "contents": [{"parts": [{"text": f"Speak in intense, powerful, emotional Bhojpuri dialogue delivery with dramatic pauses: {text}"}]}],
+                "generationConfig": {
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}},
                 },
-            },
-        }
-        r = requests.post(url, json=payload, timeout=45)
-        if r.ok:
-            parts = r.json()["candidates"][0]["content"]["parts"]
-            for p in parts:
-                inline = p.get("inlineData")
-                if inline and inline.get("data"):
-                    pcm = base64.b64decode(inline["data"])
-                    with wave.open(str(out_wav), "wb") as wf:
-                        wf.setnchannels(1)
-                        wf.setsampwidth(2)
-                        wf.setframerate(24000)
-                        wf.writeframes(pcm)
-                    return True
-    except Exception:
-        return False
+            }
+            r = requests.post(url, json=payload, timeout=45)
+            if r.ok:
+                for p in r.json()["candidates"][0]["content"]["parts"]:
+                    inline = p.get("inlineData")
+                    if inline and inline.get("data"):
+                        pcm = base64.b64decode(inline["data"])
+                        with wave.open(str(out_wav), "wb") as wf:
+                            wf.setnchannels(1)
+                            wf.setsampwidth(2)
+                            wf.setframerate(24000)
+                            wf.writeframes(pcm)
+                        return True
+        except Exception:
+            continue
     return False
 
 
-def generate_fallback_tone(duration_s: float, out_wav: Path):
+def generate_impact_sfx(out_wav: Path):
+    """Heavy bass thud + cinematic whoosh at scene start."""
     sr = 24000
-    n_samples = int(sr * duration_s)
+    dur = 0.75
+    n = int(sr * dur)
     with wave.open(str(out_wav), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sr)
         frames = bytearray()
-        for i in range(n_samples):
+        for i in range(n):
             t = i / sr
-            beat = 1.0 if (t % 0.5) < 0.08 else 0.25
-            val = int(1200 * beat * math.sin(2 * math.pi * 110 * t))
-            frames += struct.pack("<h", max(-32767, min(32767, val)))
+            env = math.exp(-t * 5.5)
+            freq = 120.0 * math.exp(-t * 4.0) + 42.0
+            thud = math.sin(2 * math.pi * freq * t) * env * 18000
+            frames += struct.pack("<h", max(-32767, min(32767, int(thud))))
         wf.writeframes(bytes(frames))
 
 
-def generate_bgm(total_duration: float, out_wav: Path):
+def generate_heavy_bgm(total_duration: float, mood: str, out_wav: Path):
+    """Deep rhythmic bass + dramatic cinematic pad."""
     sr = 24000
-    n_samples = int(sr * total_duration)
+    n = int(sr * total_duration)
+    tempo = 0.48 if mood == "rangdari" else 0.72
+    base_hz = 55.0 if mood == "rangdari" else 65.4
     with wave.open(str(out_wav), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sr)
         frames = bytearray()
-        for i in range(n_samples):
+        for i in range(n):
             t = i / sr
-            pulse = math.exp(-((t % 0.6) * 8.0))
-            bass = math.sin(2 * math.pi * 65.4 * t) * pulse * 2600
-            pad = math.sin(2 * math.pi * 196.0 * t) * 700
-            val = int(bass + pad)
+            beat_phase = t % tempo
+            kick = math.exp(-beat_phase * 11.0) * math.sin(2 * math.pi * (base_hz + 50 * math.exp(-beat_phase * 18)) * t) * 7500
+            sub = math.sin(2 * math.pi * base_hz * t) * 2600
+            pad = (math.sin(2 * math.pi * (base_hz * 3.0) * t) + math.sin(2 * math.pi * (base_hz * 4.5) * t)) * 900
+            val = int(kick + sub + pad)
             frames += struct.pack("<h", max(-32767, min(32767, val)))
         wf.writeframes(bytes(frames))
 
 
 def get_audio_duration(path: Path) -> float:
-    cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)]
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    res = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True,
+    )
     try:
         return max(3.5, float(res.stdout.strip()))
     except Exception:
-        return 6.5
+        return 6.0
 
 
 def format_ass_time(sec: float) -> str:
@@ -134,9 +165,13 @@ def format_ass_time(sec: float) -> str:
 def main():
     plan = json.loads((WORK_DIR / "script_plan.json").read_text(encoding="utf-8"))
     scenes = plan.get("scenes", [])
+    mood = plan.get("mood", "rangdari")
     voice = plan.get("voiceStyle", "Charon")
     if voice not in ("Charon", "Puck", "Aoede"):
         voice = "Charon"
+
+    sfx_wav = ASSETS_DIR / "impact_sfx.wav"
+    generate_impact_sfx(sfx_wav)
 
     clip_paths = []
     ass_events = []
@@ -145,47 +180,54 @@ def main():
     for idx, sc in enumerate(scenes, start=1):
         img_path = ASSETS_DIR / f"scene_{idx}.png"
         wav_path = ASSETS_DIR / f"voice_{idx}.wav"
+        mixed_wav = ASSETS_DIR / f"mixed_{idx}.wav"
         clip_path = ASSETS_DIR / f"clip_{idx}.mp4"
 
-        generate_image_cloudflare(sc.get("imagePrompt", "Dramatic Indian street scene"), img_path, idx)
+        generate_real_image(sc.get("imagePrompt", "Dramatic Indian cinematic scene"), img_path, idx)
         ok_tts = generate_voice_gemini(sc.get("dialogue", ""), voice, wav_path)
         if not ok_tts:
-            generate_fallback_tone(6.5, wav_path)
+            generate_impact_sfx(wav_path)
 
         dur = get_audio_duration(wav_path) + 0.35
         frames = int(dur * 30)
 
-        # Damdar editing: slow zoom-in + subtle punch shake at scene start + contrast grading
-        vf = (
-            f"scale=1200:2133,zoompan=z='min(zoom+0.0012,1.15)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
-            f"eq=contrast=1.08:saturation=1.18:brightness=0.02"
+        # Mix voice + heavy impact SFX at start of every scene
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(wav_path), "-i", str(sfx_wav),
+                "-filter_complex", "[0:a]volume=1.5[v];[1:a]volume=0.85[s];[v][s]amix=inputs=2:duration=first[a]",
+                "-map", "[a]", "-ar", "24000", "-ac", "1", str(mixed_wav),
+            ],
+            check=True,
         )
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1", "-i", str(img_path),
-            "-i", str(wav_path),
-            "-vf", vf,
-            "-t", f"{dur:.2f}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast",
-            "-c:a", "aac", "-ar", "24000", "-ac", "1",
-            str(clip_path),
-        ]
-        subprocess.run(cmd, check=True)
+
+        # Damdar editing: punch zoom + impact shake in first 0.5s + contrast/warm cinematic grade
+        vf = (
+            f"scale=1240:2204,"
+            f"zoompan=z='min(zoom+0.0022,1.22)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1120x1990:fps=30,"
+            f"crop=1080:1920:'20+if(lt(t,0.45),18*sin(t*55),0)':'35+if(lt(t,0.45),18*cos(t*60),0)',"
+            f"eq=contrast=1.12:saturation=1.22:brightness=-0.02"
+        )
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-loop", "1", "-i", str(img_path), "-i", str(mixed_wav),
+                "-vf", vf, "-t", f"{dur:.2f}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast",
+                "-c:a", "aac", "-ar", "24000", "-ac", "1", str(clip_path),
+            ],
+            check=True,
+        )
         clip_paths.append(clip_path)
 
         sub_txt = sc.get("subtitleText") or sc.get("dialogue", "")
-        ass_events.append(
-            f"Dialogue: 0,{format_ass_time(cursor)},{format_ass_time(cursor + dur - 0.1)},Default,,0,0,0,,{sub_txt}"
-        )
+        ass_events.append(f"Dialogue: 0,{format_ass_time(cursor)},{format_ass_time(cursor + dur - 0.1)},Default,,0,0,0,,{sub_txt}")
         cursor += dur
 
-    # Concat clips
     concat_file = WORK_DIR / "concat.txt"
     concat_file.write_text("\n".join(f"file '{p.resolve()}'" for p in clip_paths), encoding="utf-8")
     merged_mp4 = WORK_DIR / "merged.mp4"
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", str(merged_mp4)], check=True)
 
-    # Create ASS glowing subtitle file
     ass_path = WORK_DIR / "subs.ass"
     ass_header = """[Script Info]
 ScriptType: v4.00+
@@ -194,28 +236,24 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Noto Sans Devanagari,64,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,2,60,60,260,1
+Style: Default,Noto Sans Devanagari,68,&H0000E5FF,&H00FFFFFF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,5,3,2,55,55,270,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     ass_path.write_text(ass_header + "\n".join(ass_events), encoding="utf-8")
 
-    # Mix BGM + normalize audio + burn subtitles
     bgm_wav = WORK_DIR / "bgm.wav"
-    generate_bgm(cursor + 0.5, bgm_wav)
+    generate_heavy_bgm(cursor + 0.5, mood, bgm_wav)
     final_mp4 = WORK_DIR / "final_reel.mp4"
     subprocess.run(
         [
-            "ffmpeg", "-y",
-            "-i", str(merged_mp4),
-            "-i", str(bgm_wav),
+            "ffmpeg", "-y", "-i", str(merged_mp4), "-i", str(bgm_wav),
             "-filter_complex",
-            f"[0:v]ass='{ass_path.resolve()}'[vout];[0:a]volume=1.6[va];[1:a]volume=0.22[ba];[va][ba]amix=inputs=2:duration=first,loudnorm[aout]",
+            f"[0:v]ass='{ass_path.resolve()}'[vout];[0:a]volume=1.5[va];[1:a]volume=0.45[ba];[va][ba]amix=inputs=2:duration=first,loudnorm[aout]",
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-            str(final_mp4),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(final_mp4),
         ],
         check=True,
     )

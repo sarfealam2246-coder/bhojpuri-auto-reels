@@ -15,12 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Auto-Unzip Project if ZIP Uploaded
+      - name: Auto-Unzip & Fix Package Version
         run: |
           if [ ! -f "package.json" ] && ls *.zip 1> /dev/null 2>&1; then
             unzip -o "*.zip"
           fi
-          ls -la
+          sed -i 's/"tweetnacl-sealedbox-js": "\^1.2.2"/"tweetnacl-sealedbox-js": "^1.2.0"/g' package.json
 
       - name: Set up Node 22
         uses: actions/setup-node@v4

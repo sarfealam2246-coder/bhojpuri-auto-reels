@@ -135,15 +135,56 @@ def research_top_bhojpuri_video(channels: list, mood: str, used_urls: set) -> di
     }
 
 
+def get_active_groq_models(groq_key: str) -> list:
+    try:
+        r = requests.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {groq_key}", "User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        if r.ok:
+            ids = [m["id"] for m in r.json().get("data", []) if isinstance(m, dict) and m.get("id")]
+            chat_ids = [
+                m for m in ids
+                if not any(bad in m.lower() for bad in ["whisper", "guard", "tts", "orpheus", "playai", "safeguard"])
+            ]
+            chat_ids.sort(key=lambda x: (0 if "llama" in x.lower() else 1, x))
+            if chat_ids:
+                return chat_ids[:6]
+    except Exception:
+        pass
+    return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+
+
+def get_active_gemini_models(gemini_key: str) -> list:
+    try:
+        r = requests.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={gemini_key}",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        if r.ok:
+            models = []
+            for m in r.json().get("models", []):
+                methods = m.get("supportedGenerationMethods", [])
+                name = m.get("name", "").replace("models/", "")
+                if "generateContent" in methods and "tts" not in name.lower() and "image" not in name.lower():
+                    models.append(name)
+            models.sort(key=lambda x: (0 if "flash" in x.lower() else 1, x), reverse=False)
+            if models:
+                return models[:6]
+    except Exception:
+        pass
+    return ["gemini-3.0-flash", "gemini-2.5-flash"]
+
+
 def call_llm_auto_rotate(prompt: str) -> dict:
     groq_key = os.getenv("GROQ_API_KEY", "").strip()
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     errors = []
 
-    print(f"Key check -> GROQ present: {bool(groq_key)}, GEMINI present: {bool(gemini_key)}")
-
     if groq_key:
-        for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]:
+        for model in get_active_groq_models(groq_key):
             try:
                 r = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
@@ -165,13 +206,14 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                 )
                 if r.ok:
                     content = r.json()["choices"][0]["message"]["content"]
+                    print(f"Success with Groq model: {model}")
                     return parse_json_safe(content)
-                errors.append(f"Groq {model}: {r.status_code} {r.text[:160]}")
+                errors.append(f"Groq {model}: {r.status_code} {r.text[:140]}")
             except Exception as exc:
                 errors.append(f"Groq {model}: {exc}")
 
     if gemini_key:
-        for model in ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]:
+        for model in get_active_gemini_models(gemini_key):
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 r = requests.post(
@@ -185,8 +227,9 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                 )
                 if r.ok:
                     text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    print(f"Success with Gemini model: {model}")
                     return parse_json_safe(text)
-                errors.append(f"Gemini {model}: {r.status_code} {r.text[:160]}")
+                errors.append(f"Gemini {model}: {r.status_code} {r.text[:140]}")
             except Exception as exc:
                 errors.append(f"Gemini {model}: {exc}")
 

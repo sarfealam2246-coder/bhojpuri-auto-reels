@@ -1,0 +1,106 @@
+{
+  "updatedAt": "2026-11-24T20:18:05.071Z",
+  "activeFacebookPage": {
+    "id": "pg_1795529540564",
+    "pageName": "Bhojpuri Page 1",
+    "pageId": ""
+  },
+  "schedule": {
+    "morningReelIst": "09:00",
+    "eveningReelIst": "20:00",
+    "photoPostEnabled": true,
+    "photoPostDays": [
+      "Tue",
+      "Thu",
+      "Sun"
+    ],
+    "photoPostIst": "13:00",
+    "autoSaveToDevice": true
+  },
+  "channels": [
+    {
+      "id": "ch_1",
+      "name": "Bhojpuri Rangdari Dialogue",
+      "youtubeHandleOrUrl": "bhojpuri rangdari attitude dialogue shorts",
+      "category": "rangdari",
+      "enabled": true
+    },
+    {
+      "id": "ch_2",
+      "name": "Bhojpuri Bewafai Sad Shayari",
+      "youtubeHandleOrUrl": "bhojpuri bewafai sad dialogue status shorts",
+      "category": "bewafai",
+      "enabled": true
+    },
+    {
+      "id": "ch_3",
+      "name": "Desi Bhojpuri Comedy Viral",
+      "youtubeHandleOrUrl": "bhojpuri desi comedy funny dialogue shorts",
+      "category": "comedy",
+      "enabled": true
+    },
+    {
+      "id": "ch_4",
+      "name": "Bhojpuri Judai Emotional",
+      "youtubeHandleOrUrl": "bhojpuri judai emotional sad dialogue shorts",
+      "category": "judai",
+      "enabled": true
+    },
+    {
+      "id": "ch_5",
+      "name": "Gaon Vafadari & Imandari",
+      "youtubeHandleOrUrl": "bhojpuri imandari vafadari emotional story shorts",
+      "category": "vafadari",
+      "enabled": true
+    },
+    {
+      "id": "ch_6",
+      "name": "Purvanchal Dabang Attitude",
+      "youtubeHandleOrUrl": "purvanchal bhojpuri dabang dialogue shorts",
+      "category": "rangdari",
+      "enabled": true
+    },
+    {
+      "id": "ch_7",
+      "name": "Bihar UP Desi Punch",
+      "youtubeHandleOrUrl": "bihar up desi comedy viral dialogue shorts",
+      "category": "comedy",
+      "enabled": true
+    },
+    {
+      "id": "ch_8",
+      "name": "Broken Heart Bhojpuri",
+      "youtubeHandleOrUrl": "bhojpuri tutal dil bewafai shayari shorts",
+      "category": "bewafai",
+      "enabled": true
+    },
+    {
+      "id": "ch_9",
+      "name": "Yari Dosti Bhojpuri Status",
+      "youtubeHandleOrUrl": "bhojpuri yaari dosti vafadari dialogue shorts",
+      "category": "vafadari",
+      "enabled": true
+    },
+    {
+      "id": "ch_10",
+      "name": "Maa Baap Emotional Bhojpuri",
+      "youtubeHandleOrUrl": "bhojpuri maa baap emotional dialogue shorts",
+      "category": "judai",
+      "enabled": true
+    },
+    {
+      "id": "ch_11",
+      "name": "Bhojpuri Chaukhat Comedy",
+      "youtubeHandleOrUrl": "bhojpuri gaon chaukhat comedy shorts",
+      "category": "comedy",
+      "enabled": true
+    },
+    {
+      "id": "ch_12",
+      "name": "Bhojpuri Sher Shayari",
+      "youtubeHandleOrUrl": "bhojpuri sher shayari attitude reels",
+      "category": "rangdari",
+      "enabled": true
+    }
+  ]
+}

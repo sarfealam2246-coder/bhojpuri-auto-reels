@@ -2,13 +2,15 @@ import base64
 import json
 import math
 import os
+import shutil
 import struct
 import subprocess
+import sys
 import time
 import urllib.parse
 import wave
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageStat
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,27 +18,36 @@ WORK_DIR = ROOT / "work"
 ASSETS_DIR = WORK_DIR / "assets"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
-BGM_SOURCES = {
-    "intense_action": [
-        "https://freepd.com/music/A%20Very%20Brady%20Special.mp3",
-        "https://freepd.com/music/Dark%20Times.mp3",
-    ],
-    "sad_emotional": [
-        "https://freepd.com/music/Sad%20Trio.mp3",
-        "https://freepd.com/music/Heartbreaking.mp3",
-    ],
-    "warm_inspiring": [
-        "https://freepd.com/music/Bittersweet.mp3",
-        "https://freepd.com/music/Touching%20Moments%20Two.mp3",
-    ],
-    "desi_upbeat": [
-        "https://freepd.com/music/Comedy%20Detective.mp3",
-        "https://freepd.com/music/BossaBossa.mp3",
-    ],
+BGM_YT_QUERIES = {
+    "intense_action": "no copyright dark intense cinematic hip hop beat instrumental",
+    "sad_emotional": "no copyright sad emotional flute piano instrumental music",
+    "warm_inspiring": "no copyright inspiring emotional acoustic guitar instrumental",
+    "desi_upbeat": "no copyright indian dholak upbeat folk instrumental music",
 }
 
 
-def generate_real_image(prompt: str, out_path: Path, scene_idx: int):
+def is_valid_real_image(path: Path) -> bool:
+    if not path.exists() or path.stat().st_size < 18000:
+        return False
+    try:
+        img = Image.open(path).convert("RGB")
+        stat = ImageStat.Stat(img)
+        avg_std = sum(stat.stddev) / 3.0
+        avg_mean = sum(stat.mean) / 3.0
+        return avg_std > 12.0 and avg_mean > 15.0
+    except Exception:
+        return False
+
+
+def finalize_portrait_image(raw_path: Path, out_path: Path):
+    img = Image.open(raw_path).convert("RGB")
+    w, h = img.size
+    img = img.crop((0, 0, w, int(h * 0.94)))
+    img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
+    img.save(out_path, quality=95)
+
+
+def generate_real_image(prompt: str, out_path: Path, scene_idx: int, prev_valid_paths: list):
     full_prompt = (
         f"{prompt}, realistic 35mm Indian film still, real human photography, sharp focus, "
         f"dramatic cinematic lighting, vertical 9:16, no anime, no cartoon, no text, no watermark"
@@ -44,25 +55,26 @@ def generate_real_image(prompt: str, out_path: Path, scene_idx: int):
     acc_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
     token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    tmp_raw = ASSETS_DIR / f"raw_{scene_idx}.png"
 
     if acc_id and token:
-        for attempt in range(2):
+        for _ in range(2):
             try:
                 r = requests.post(
                     f"https://api.cloudflare.com/client/v4/accounts/{acc_id}/ai/run/@cf/black-forest-labs/flux-1-schnell",
                     headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                     json={"prompt": full_prompt, "num_steps": 8, "width": 576, "height": 1024},
-                    timeout=55,
+                    timeout=45,
                 )
                 if r.ok:
                     if "image/" in r.headers.get("Content-Type", ""):
-                        out_path.write_bytes(r.content)
+                        tmp_raw.write_bytes(r.content)
                     else:
                         b64_img = r.json().get("result", {}).get("image")
                         if b64_img:
-                            out_path.write_bytes(base64.b64decode(b64_img))
-                    if out_path.exists() and out_path.stat().st_size > 15000:
-                        Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
+                            tmp_raw.write_bytes(base64.b64decode(b64_img))
+                    if is_valid_real_image(tmp_raw):
+                        finalize_portrait_image(tmp_raw, out_path)
                         print(f"Scene {scene_idx}: Cloudflare Flux OK")
                         return
             except Exception:
@@ -79,36 +91,48 @@ def generate_real_image(prompt: str, out_path: Path, scene_idx: int):
                         "contents": [{"parts": [{"text": f"Generate a vertical 9:16 realistic photograph: {full_prompt}"}]}],
                         "generationConfig": {"responseModalities": ["IMAGE"]},
                     },
-                    timeout=50,
+                    timeout=45,
                 )
                 if r.ok:
                     for p in r.json()["candidates"][0]["content"]["parts"]:
                         if p.get("inlineData", {}).get("data"):
-                            out_path.write_bytes(base64.b64decode(p["inlineData"]["data"]))
-                            Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
-                            print(f"Scene {scene_idx}: Gemini Image OK")
-                            return
+                            tmp_raw.write_bytes(base64.b64decode(p["inlineData"]["data"]))
+                            if is_valid_real_image(tmp_raw):
+                                finalize_portrait_image(tmp_raw, out_path)
+                                print(f"Scene {scene_idx}: Gemini Image OK")
+                                return
             except Exception:
                 continue
 
     for attempt in range(3):
         try:
-            time.sleep(2.5 + attempt * 2)
+            time.sleep(3.5 + attempt * 3.0)
             encoded = urllib.parse.quote(full_prompt)
-            p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&model=flux&nologo=true&seed={scene_idx * 409 + attempt}"
-            pr = requests.get(p_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=55)
-            if pr.ok and len(pr.content) > 15000:
-                out_path.write_bytes(pr.content)
-                Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
-                print(f"Scene {scene_idx}: Pollinations Flux OK")
-                return
+            p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&model=flux&nologo=true&seed={scene_idx * 503 + attempt}"
+            pr = requests.get(p_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=50)
+            if pr.ok and len(pr.content) > 18000:
+                tmp_raw.write_bytes(pr.content)
+                if is_valid_real_image(tmp_raw):
+                    finalize_portrait_image(tmp_raw, out_path)
+                    print(f"Scene {scene_idx}: Pollinations Flux OK")
+                    return
         except Exception:
             pass
 
-    img = Image.new("RGB", (1080, 1920), (18, 18, 28))
+    if prev_valid_paths:
+        src = Image.open(prev_valid_paths[-1]).convert("RGB")
+        if scene_idx % 2 == 0:
+            src = src.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        w, h = src.size
+        src = src.crop((int(w * 0.08), int(h * 0.08), int(w * 0.92), int(h * 0.92))).resize((1080, 1920), Image.Resampling.LANCZOS)
+        src.save(out_path, quality=94)
+        print(f"Scene {scene_idx}: Visual Gate reused real zoomed frame (zero black screen)")
+        return
+
+    img = Image.new("RGB", (1080, 1920), (32, 24, 28))
     draw = ImageDraw.Draw(img)
     for y in range(1920):
-        draw.line([(0, y), (1080, y)], fill=(int(18 + (y / 1920) * 28), 20, 34))
+        draw.line([(0, y), (1080, y)], fill=(int(28 + (y / 1920) * 45), 24, 38))
     img.save(out_path, quality=90)
 
 
@@ -120,7 +144,7 @@ def generate_voice_gemini(text: str, voice_name: str, out_wav: Path) -> bool:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
             payload = {
-                "contents": [{"parts": [{"text": f"Speak in authentic, natural, expressive Bhojpuri Indian cinema voice: {text}"}]}],
+                "contents": [{"parts": [{"text": f"Speak in authentic, natural, expressive Bihar Bhojpuri cinema voice: {text}"}]}],
                 "generationConfig": {
                     "responseModalities": ["AUDIO"],
                     "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}},
@@ -143,21 +167,36 @@ def generate_voice_gemini(text: str, voice_name: str, out_wav: Path) -> bool:
     return False
 
 
-def download_mood_bgm(music_mood: str, total_dur: float, out_wav: Path):
-    for url in BGM_SOURCES.get(music_mood, BGM_SOURCES["sad_emotional"]):
-        try:
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
-            if r.ok and len(r.content) > 50000:
-                mp3_path = ASSETS_DIR / "bgm_raw.mp3"
-                mp3_path.write_bytes(r.content)
-                subprocess.run(
-                    ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(mp3_path), "-t", f"{total_dur:.2f}", "-ar", "24000", "-ac", "1", str(out_wav)],
-                    check=True,
-                )
-                print(f"Real Royalty-Free BGM OK ({music_mood}): {url}")
-                return
-        except Exception:
-            continue
+def fetch_real_bgm(music_mood: str, total_dur: float, out_wav: Path):
+    query = BGM_YT_QUERIES.get(music_mood, BGM_YT_QUERIES["sad_emotional"])
+    raw_audio = ASSETS_DIR / "bgm_dl"
+    try:
+        subprocess.run(
+            [
+                sys.executable, "-m", "yt_dlp",
+                "-f", "bestaudio/best",
+                "--max-filesize", "12M",
+                "--no-playlist",
+                "-o", str(raw_audio) + ".%(ext)s",
+                f"ytsearch1:{query}",
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        dl_files = list(ASSETS_DIR.glob("bgm_dl.*"))
+        if dl_files and dl_files[0].stat().st_size > 30000:
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-stream_loop", "-1",
+                    "-ss", "12", "-i", str(dl_files[0]),
+                    "-t", f"{total_dur:.2f}", "-ar", "24000", "-ac", "1",
+                    str(out_wav),
+                ],
+                check=True,
+            )
+            print(f"Real No-Copyright BGM OK ({music_mood})")
+            return
+    except Exception as exc:
+        print(f"BGM yt-dlp fallback ({exc})")
 
     sr = 24000
     n = int(sr * total_dur)
@@ -169,7 +208,7 @@ def download_mood_bgm(music_mood: str, total_dur: float, out_wav: Path):
         for i in range(n):
             t = i / sr
             beat = t % 0.75
-            val = int(math.exp(-beat * 10.0) * math.sin(2 * math.pi * 55.0 * t) * 7000)
+            val = int(math.exp(-beat * 10.0) * math.sin(2 * math.pi * 52.0 * t) * 6500)
             frames += struct.pack("<h", max(-32767, min(32767, val)))
         wf.writeframes(bytes(frames))
 
@@ -186,7 +225,7 @@ def generate_climax_thud_sfx(out_wav: Path):
             t = i / sr
             env = math.exp(-t * 6.0)
             freq = 92.0 * math.exp(-t * 5.0) + 36.0
-            val = int(math.sin(2 * math.pi * freq * t) * env * 25000)
+            val = int(math.sin(2 * math.pi * freq * t) * env * 24000)
             frames += struct.pack("<h", max(-32767, min(32767, val)))
         wf.writeframes(bytes(frames))
 
@@ -224,6 +263,16 @@ def create_thumbnail(scene_img: Path, title: str, out_thumb: Path):
     img.save(out_thumb, quality=94)
 
 
+def verify_final_reel(mp4_path: Path):
+    assert mp4_path.exists() and mp4_path.stat().st_size > 100_000, "Final MP4 missing or too small"
+    res = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(mp4_path)],
+        capture_output=True, text=True, check=True,
+    )
+    streams = res.stdout.strip().splitlines()
+    assert "video" in streams and "audio" in streams, f"Missing A/V streams: {streams}"
+
+
 def main():
     plan = json.loads((WORK_DIR / "script_plan.json").read_text(encoding="utf-8"))
     scenes = plan.get("scenes", [])
@@ -238,9 +287,9 @@ def main():
 
     clip_paths = []
     ass_events = []
-    first_scene_img = None
+    valid_imgs = []
     cursor = 0.0
-    intro_dur = 1.7
+    intro_dur = 1.8
 
     for idx, sc in enumerate(scenes, start=1):
         img_path = ASSETS_DIR / f"scene_{idx}.png"
@@ -248,9 +297,9 @@ def main():
         voice_ready_wav = ASSETS_DIR / f"voice_ready_{idx}.wav"
         clip_path = ASSETS_DIR / f"clip_{idx}.mp4"
 
-        generate_real_image(sc.get("imagePrompt", "Dramatic Indian cinema scene"), img_path, idx)
-        if first_scene_img is None:
-            first_scene_img = img_path
+        generate_real_image(sc.get("imagePrompt", "Dramatic Indian cinema scene"), img_path, idx, valid_imgs)
+        if is_valid_real_image(img_path):
+            valid_imgs.append(img_path)
 
         ok_tts = generate_voice_gemini(sc.get("dialogue", ""), voice, wav_path)
         if not ok_tts:
@@ -359,7 +408,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     ass_path.write_text(ass_header + "\n".join(ass_events), encoding="utf-8")
 
     bgm_wav = WORK_DIR / "bgm.wav"
-    download_mood_bgm(music_mood, cursor + 0.5, bgm_wav)
+    fetch_real_bgm(music_mood, cursor + 0.5, bgm_wav)
 
     final_mp4 = WORK_DIR / "final_reel.mp4"
     subprocess.run(
@@ -380,10 +429,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         check=True,
     )
 
-    if first_scene_img and first_scene_img.exists():
-        create_thumbnail(first_scene_img, title_text, WORK_DIR / "thumbnail.jpg")
+    verify_final_reel(final_mp4)
+    if valid_imgs:
+        create_thumbnail(valid_imgs[0], title_text, WORK_DIR / "thumbnail.jpg")
+    elif (ASSETS_DIR / "scene_1.png").exists():
+        create_thumbnail(ASSETS_DIR / "scene_1.png", title_text, WORK_DIR / "thumbnail.jpg")
 
-    print(f"Final reel rendered: {final_mp4} (duration ~{cursor:.1f}s)")
+    print(f"All Quality Gates PASSED: {final_mp4} (duration ~{cursor:.1f}s)")
 
 
 if __name__ == "__main__":

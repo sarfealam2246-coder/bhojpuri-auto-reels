@@ -146,5 +146,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_105514/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261125_132215",
+    "createdAt": "2026-11-25T13:22:15.065517+00:00",
+    "slot": "evening",
+    "mood": "bewafai",
+    "title": "जवन भरोसा टूटल",
+    "scriptDialogue": "गाँव के चौक पर रजत के हाथ में लहंगा, सभे देखत रहले, पर उँकर आँख में उदासी छिपल बा। रात के सन्नाटा में, रजत के मोबाइल पर एगो फोटो खुलल, जहाँ सिता दोसर आदमी के बगल में मुस्कुरा रहल बा। रजत के दिल के धड़कन तेज हो गइल, उ सोचल, “का ई वही सिता ह, जेकरा से हम वचन लेले रहीं?” उ फोटो के नीचे छोट नोट लिखल रहे: “माफ कर द, हम दोसर राह चुनलीं।” रजत के आँख में आँसू के धारा बहल, तब उ ठहरे, “हम तोहर भरोसा टूटल देख के, अब कुछू ना कहब।” ऊ पुरान पार्श्व गली में चलत, याद के धुंध में हर कदम पर सिता के हँसी गूँजत रहे। अंत में रजत कवनो शोर में कहे लगल, “अब तोहार याद हमार सुकून ना रहल, जइहँा जइहँा, बिसर जाईब।”",
+    "caption": "जवन भरोसा टूटल, उ दिल के धड़कन भी थम जाला? अपने विचार बताईं!",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#DesiJazbaat",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Lakhan Ballia World",
+      "videoTitle": "Bewafa Ringtone Video 💔Bhojpuri New Ringtone Sad Video 💔Bewafai Bhojpuri Ringtone 2025",
+      "videoUrl": "https://www.youtube.com/watch?v=3OaxQ_XsLFA",
+      "viewsLabel": "491,166 views"
+    },
+    "gapAnalysis": [
+      "Reference videos lacked a clear turning point – we added a note reveal in Scene 4 to pivot the story",
+      "Previous reels jumped scenes without visual continuity – we kept the same characters and setting across all scenes",
+      "Earlier captions used Hindi filler words – we replaced them with pure Bhojpuri dialogue"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_132215/final_reel.mp4"
   }
 ]

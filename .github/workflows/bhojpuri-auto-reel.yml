@@ -3,7 +3,7 @@ name: 24x7 Bhojpuri Auto-Reel
 on:
   schedule:
     - cron: '30 3 * * *'   # 09:00 AM IST Daily
-    - cron: '30 14 * * *'  # 08:00 PM IST Daily
+    - cron: '30 13 * * *'  # 07:00 PM IST Daily
   workflow_dispatch:
     inputs:
       slot:
@@ -26,10 +26,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install FFmpeg & Devanagari Fonts
+      - name: Install FFmpeg, Devanagari & Color Emoji Fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-core
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-color-emoji
 
       - name: Install Python dependencies
         run: pip install -r scripts/requirements.txt

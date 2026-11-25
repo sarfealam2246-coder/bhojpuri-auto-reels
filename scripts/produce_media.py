@@ -4,10 +4,11 @@ import math
 import os
 import struct
 import subprocess
+import time
 import urllib.parse
 import wave
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,60 +16,99 @@ WORK_DIR = ROOT / "work"
 ASSETS_DIR = WORK_DIR / "assets"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
+BGM_SOURCES = {
+    "intense_action": [
+        "https://freepd.com/music/A%20Very%20Brady%20Special.mp3",
+        "https://freepd.com/music/Dark%20Times.mp3",
+    ],
+    "sad_emotional": [
+        "https://freepd.com/music/Sad%20Trio.mp3",
+        "https://freepd.com/music/Heartbreaking.mp3",
+    ],
+    "warm_inspiring": [
+        "https://freepd.com/music/Bittersweet.mp3",
+        "https://freepd.com/music/Touching%20Moments%20Two.mp3",
+    ],
+    "desi_upbeat": [
+        "https://freepd.com/music/Comedy%20Detective.mp3",
+        "https://freepd.com/music/BossaBossa.mp3",
+    ],
+}
+
 
 def generate_real_image(prompt: str, out_path: Path, scene_idx: int):
-    full_prompt = f"{prompt}, hyper realistic 8k cinematic photography, dramatic lighting, sharp focus, vertical 9:16, no text, no watermark"
+    full_prompt = (
+        f"{prompt}, realistic 35mm Indian film still, real human photography, sharp focus, "
+        f"dramatic cinematic lighting, vertical 9:16, no anime, no cartoon, no text, no watermark"
+    )
     acc_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
     token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
 
-    # 1. Try Cloudflare Workers AI (handles both JSON base64 and raw PNG bytes)
     if acc_id and token:
+        for attempt in range(2):
+            try:
+                r = requests.post(
+                    f"https://api.cloudflare.com/client/v4/accounts/{acc_id}/ai/run/@cf/black-forest-labs/flux-1-schnell",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={"prompt": full_prompt, "num_steps": 8, "width": 576, "height": 1024},
+                    timeout=55,
+                )
+                if r.ok:
+                    if "image/" in r.headers.get("Content-Type", ""):
+                        out_path.write_bytes(r.content)
+                    else:
+                        b64_img = r.json().get("result", {}).get("image")
+                        if b64_img:
+                            out_path.write_bytes(base64.b64decode(b64_img))
+                    if out_path.exists() and out_path.stat().st_size > 15000:
+                        Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
+                        print(f"Scene {scene_idx}: Cloudflare Flux OK")
+                        return
+            except Exception:
+                pass
+            time.sleep(1.5)
+
+    if gemini_key:
+        for g_model in ["gemini-2.0-flash-exp-image-generation", "gemini-2.5-flash-image"]:
+            try:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={gemini_key}",
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "contents": [{"parts": [{"text": f"Generate a vertical 9:16 realistic photograph: {full_prompt}"}]}],
+                        "generationConfig": {"responseModalities": ["IMAGE"]},
+                    },
+                    timeout=50,
+                )
+                if r.ok:
+                    for p in r.json()["candidates"][0]["content"]["parts"]:
+                        if p.get("inlineData", {}).get("data"):
+                            out_path.write_bytes(base64.b64decode(p["inlineData"]["data"]))
+                            Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
+                            print(f"Scene {scene_idx}: Gemini Image OK")
+                            return
+            except Exception:
+                continue
+
+    for attempt in range(3):
         try:
-            url = f"https://api.cloudflare.com/client/v4/accounts/{acc_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-            r = requests.post(
-                url,
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={"prompt": full_prompt, "num_steps": 6},
-                timeout=50,
-            )
-            if r.ok:
-                ctype = r.headers.get("Content-Type", "")
-                if "image/" in ctype:
-                    out_path.write_bytes(r.content)
-                else:
-                    b64_img = r.json().get("result", {}).get("image")
-                    if b64_img:
-                        out_path.write_bytes(base64.b64decode(b64_img))
-                if out_path.exists() and out_path.stat().st_size > 5000:
-                    img = Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS)
-                    img.save(out_path, quality=94)
-                    print(f"Scene {scene_idx}: Cloudflare Flux OK")
-                    return
-            else:
-                print(f"Cloudflare failed ({r.status_code}): {r.text[:120]}")
-        except Exception as exc:
-            print(f"Cloudflare error: {exc}")
+            time.sleep(2.5 + attempt * 2)
+            encoded = urllib.parse.quote(full_prompt)
+            p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&model=flux&nologo=true&seed={scene_idx * 409 + attempt}"
+            pr = requests.get(p_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=55)
+            if pr.ok and len(pr.content) > 15000:
+                out_path.write_bytes(pr.content)
+                Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS).save(out_path, quality=95)
+                print(f"Scene {scene_idx}: Pollinations Flux OK")
+                return
+        except Exception:
+            pass
 
-    # 2. Free High-Res Flux Fallback (Pollinations AI - Real cinematic photo!)
-    try:
-        encoded = urllib.parse.quote(full_prompt)
-        p_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={scene_idx * 137}"
-        pr = requests.get(p_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=45)
-        if pr.ok and len(pr.content) > 10000:
-            out_path.write_bytes(pr.content)
-            img = Image.open(out_path).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS)
-            img.save(out_path, quality=94)
-            print(f"Scene {scene_idx}: Pollinations Flux HD OK")
-            return
-    except Exception as exc:
-        print(f"Pollinations fallback error: {exc}")
-
-    # 3. Last-resort dark cinematic vignette (only if offline)
-    img = Image.new("RGB", (1080, 1920), (18, 16, 26))
+    img = Image.new("RGB", (1080, 1920), (18, 18, 28))
     draw = ImageDraw.Draw(img)
     for y in range(1920):
-        c = int(16 + (y / 1920) * 35)
-        draw.line([(0, y), (1080, y)], fill=(c, 18, 32))
+        draw.line([(0, y), (1080, y)], fill=(int(18 + (y / 1920) * 28), 20, 34))
     img.save(out_path, quality=90)
 
 
@@ -80,7 +120,7 @@ def generate_voice_gemini(text: str, voice_name: str, out_wav: Path) -> bool:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
             payload = {
-                "contents": [{"parts": [{"text": f"Speak in intense, powerful, emotional Bhojpuri dialogue delivery with dramatic pauses: {text}"}]}],
+                "contents": [{"parts": [{"text": f"Speak in authentic, natural, expressive Bhojpuri Indian cinema voice: {text}"}]}],
                 "generationConfig": {
                     "responseModalities": ["AUDIO"],
                     "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}},
@@ -103,11 +143,24 @@ def generate_voice_gemini(text: str, voice_name: str, out_wav: Path) -> bool:
     return False
 
 
-def generate_impact_sfx(out_wav: Path):
-    """Heavy bass thud + cinematic whoosh at scene start."""
+def download_mood_bgm(music_mood: str, total_dur: float, out_wav: Path):
+    for url in BGM_SOURCES.get(music_mood, BGM_SOURCES["sad_emotional"]):
+        try:
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+            if r.ok and len(r.content) > 50000:
+                mp3_path = ASSETS_DIR / "bgm_raw.mp3"
+                mp3_path.write_bytes(r.content)
+                subprocess.run(
+                    ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(mp3_path), "-t", f"{total_dur:.2f}", "-ar", "24000", "-ac", "1", str(out_wav)],
+                    check=True,
+                )
+                print(f"Real Royalty-Free BGM OK ({music_mood}): {url}")
+                return
+        except Exception:
+            continue
+
     sr = 24000
-    dur = 0.75
-    n = int(sr * dur)
+    n = int(sr * total_dur)
     with wave.open(str(out_wav), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
@@ -115,19 +168,15 @@ def generate_impact_sfx(out_wav: Path):
         frames = bytearray()
         for i in range(n):
             t = i / sr
-            env = math.exp(-t * 5.5)
-            freq = 120.0 * math.exp(-t * 4.0) + 42.0
-            thud = math.sin(2 * math.pi * freq * t) * env * 18000
-            frames += struct.pack("<h", max(-32767, min(32767, int(thud))))
+            beat = t % 0.75
+            val = int(math.exp(-beat * 10.0) * math.sin(2 * math.pi * 55.0 * t) * 7000)
+            frames += struct.pack("<h", max(-32767, min(32767, val)))
         wf.writeframes(bytes(frames))
 
 
-def generate_heavy_bgm(total_duration: float, mood: str, out_wav: Path):
-    """Deep rhythmic bass + dramatic cinematic pad."""
+def generate_climax_thud_sfx(out_wav: Path):
     sr = 24000
-    n = int(sr * total_duration)
-    tempo = 0.48 if mood == "rangdari" else 0.72
-    base_hz = 55.0 if mood == "rangdari" else 65.4
+    n = int(sr * 0.65)
     with wave.open(str(out_wav), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
@@ -135,11 +184,9 @@ def generate_heavy_bgm(total_duration: float, mood: str, out_wav: Path):
         frames = bytearray()
         for i in range(n):
             t = i / sr
-            beat_phase = t % tempo
-            kick = math.exp(-beat_phase * 11.0) * math.sin(2 * math.pi * (base_hz + 50 * math.exp(-beat_phase * 18)) * t) * 7500
-            sub = math.sin(2 * math.pi * base_hz * t) * 2600
-            pad = (math.sin(2 * math.pi * (base_hz * 3.0) * t) + math.sin(2 * math.pi * (base_hz * 4.5) * t)) * 900
-            val = int(kick + sub + pad)
+            env = math.exp(-t * 6.0)
+            freq = 92.0 * math.exp(-t * 5.0) + 36.0
+            val = int(math.sin(2 * math.pi * freq * t) * env * 25000)
             frames += struct.pack("<h", max(-32767, min(32767, val)))
         wf.writeframes(bytes(frames))
 
@@ -162,55 +209,113 @@ def format_ass_time(sec: float) -> str:
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
+def create_thumbnail(scene_img: Path, title: str, out_thumb: Path):
+    img = Image.open(scene_img).convert("RGB").resize((1080, 1920), Image.Resampling.LANCZOS)
+    overlay = Image.new("RGBA", (1080, 1920), (0, 0, 0, 85))
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+    try:
+        font = ImageFont.truetype(font_path, 74) if Path(font_path).exists() else ImageFont.load_default()
+    except Exception:
+        font = ImageFont.load_default()
+    draw.rectangle([(60, 1420), (1020, 1660)], fill=(18, 18, 28), outline=(255, 200, 0), width=5)
+    draw.text((540, 1540), title[:32], fill=(255, 220, 40), font=font, anchor="mm")
+    img.save(out_thumb, quality=94)
+
+
 def main():
     plan = json.loads((WORK_DIR / "script_plan.json").read_text(encoding="utf-8"))
     scenes = plan.get("scenes", [])
     mood = plan.get("mood", "rangdari")
+    music_mood = plan.get("musicMood", "sad_emotional")
     voice = plan.get("voiceStyle", "Charon")
     if voice not in ("Charon", "Puck", "Aoede"):
         voice = "Charon"
 
-    sfx_wav = ASSETS_DIR / "impact_sfx.wav"
-    generate_impact_sfx(sfx_wav)
+    sfx_wav = ASSETS_DIR / "climax_thud.wav"
+    generate_climax_thud_sfx(sfx_wav)
 
     clip_paths = []
     ass_events = []
+    first_scene_img = None
     cursor = 0.0
+    intro_dur = 1.7
 
     for idx, sc in enumerate(scenes, start=1):
         img_path = ASSETS_DIR / f"scene_{idx}.png"
         wav_path = ASSETS_DIR / f"voice_{idx}.wav"
-        mixed_wav = ASSETS_DIR / f"mixed_{idx}.wav"
+        voice_ready_wav = ASSETS_DIR / f"voice_ready_{idx}.wav"
         clip_path = ASSETS_DIR / f"clip_{idx}.mp4"
 
-        generate_real_image(sc.get("imagePrompt", "Dramatic Indian cinematic scene"), img_path, idx)
+        generate_real_image(sc.get("imagePrompt", "Dramatic Indian cinema scene"), img_path, idx)
+        if first_scene_img is None:
+            first_scene_img = img_path
+
         ok_tts = generate_voice_gemini(sc.get("dialogue", ""), voice, wav_path)
         if not ok_tts:
-            generate_impact_sfx(wav_path)
+            generate_climax_thud_sfx(wav_path)
 
-        dur = get_audio_duration(wav_path) + 0.35
+        effect = sc.get("effect", "smooth_zoom")
+        if idx == len(scenes) and mood in ("rangdari", "bewafai"):
+            effect = "climax_shake"
+
+        lead_delay_ms = int(intro_dur * 1000) if idx == 1 else 150
+        if effect == "climax_shake":
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", str(wav_path), "-i", str(sfx_wav),
+                    "-filter_complex", f"[0:a]adelay={lead_delay_ms}|{lead_delay_ms},volume=1.6[v];[1:a]volume=1.0[s];[v][s]amix=inputs=2:duration=first[a]",
+                    "-map", "[a]", "-ar", "24000", "-ac", "1", str(voice_ready_wav),
+                ],
+                check=True,
+            )
+        else:
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", str(wav_path),
+                    "-af", f"adelay={lead_delay_ms}|{lead_delay_ms},volume=1.6",
+                    "-ar", "24000", "-ac", "1", str(voice_ready_wav),
+                ],
+                check=True,
+            )
+
+        dur = get_audio_duration(voice_ready_wav) + 0.35
         frames = int(dur * 30)
 
-        # Mix voice + heavy impact SFX at start of every scene
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-i", str(wav_path), "-i", str(sfx_wav),
-                "-filter_complex", "[0:a]volume=1.5[v];[1:a]volume=0.85[s];[v][s]amix=inputs=2:duration=first[a]",
-                "-map", "[a]", "-ar", "24000", "-ac", "1", str(mixed_wav),
-            ],
-            check=True,
-        )
+        if effect == "climax_shake":
+            vf = (
+                f"scale=1260:2240,"
+                f"zoompan=z='min(zoom+0.0025,1.22)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1140x2026:fps=30,"
+                f"crop=1080:1920:'30+if(lt(t,0.65),26*sin(t*62),0)':'53+if(lt(t,0.65),26*cos(t*68),0)',"
+                f"fade=t=in:st=0:d=0.12:color=white,"
+                f"eq=contrast=1.10:saturation=1.18"
+            )
+        elif effect == "pan_left":
+            vf = (
+                f"scale=1240:2204,"
+                f"zoompan=z='1.12':d={frames}:x='max(0,iw*0.10-(on/{frames})*iw*0.10)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
+                f"fade=t=in:st=0:d=0.20,"
+                f"eq=contrast=1.08:saturation=1.16"
+            )
+        elif effect == "pan_right":
+            vf = (
+                f"scale=1240:2204,"
+                f"zoompan=z='1.12':d={frames}:x='min(iw*0.10,(on/{frames})*iw*0.10)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
+                f"fade=t=in:st=0:d=0.20,"
+                f"eq=contrast=1.08:saturation=1.16"
+            )
+        else:
+            vf = (
+                f"scale=1220:2168,"
+                f"zoompan=z='min(zoom+0.0014,1.16)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
+                f"fade=t=in:st=0:d=0.20,"
+                f"eq=contrast=1.08:saturation=1.16"
+            )
 
-        # Damdar editing: punch zoom + impact shake in first 0.5s + contrast/warm cinematic grade
-        vf = (
-            f"scale=1240:2204,"
-            f"zoompan=z='min(zoom+0.0022,1.22)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1120x1990:fps=30,"
-            f"crop=1080:1920:'20+if(lt(t,0.45),18*sin(t*55),0)':'35+if(lt(t,0.45),18*cos(t*60),0)',"
-            f"eq=contrast=1.12:saturation=1.22:brightness=-0.02"
-        )
         subprocess.run(
             [
-                "ffmpeg", "-y", "-loop", "1", "-i", str(img_path), "-i", str(mixed_wav),
+                "ffmpeg", "-y", "-loop", "1", "-i", str(img_path), "-i", str(voice_ready_wav),
                 "-vf", vf, "-t", f"{dur:.2f}",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast",
                 "-c:a", "aac", "-ar", "24000", "-ac", "1", str(clip_path),
@@ -219,9 +324,18 @@ def main():
         )
         clip_paths.append(clip_path)
 
+        sub_start = cursor + (intro_dur if idx == 1 else 0.15)
         sub_txt = sc.get("subtitleText") or sc.get("dialogue", "")
-        ass_events.append(f"Dialogue: 0,{format_ass_time(cursor)},{format_ass_time(cursor + dur - 0.1)},Default,,0,0,0,,{sub_txt}")
+        ass_events.append(
+            f"Dialogue: 0,{format_ass_time(sub_start)},{format_ass_time(cursor + dur - 0.1)},Default,,0,0,0,,{{\\fscx85\\fscy85\\t(0,180,\\fscx104\\fscy104)\\t(180,300,\\fscx100\\fscy100)}}{sub_txt}"
+        )
         cursor += dur
+
+    title_text = plan.get("title", "Bhojpuri Pulse X")
+    ass_events.insert(
+        0,
+        f"Dialogue: 1,0:00:00.00,0:00:02.60,TitleBanner,,0,0,0,,{{\\fad(200,300)\\fscx75\\fscy75\\t(0,260,\\fscx108\\fscy108)\\t(260,420,\\fscx100\\fscy100)}}{title_text}",
+    )
 
     concat_file = WORK_DIR / "concat.txt"
     concat_file.write_text("\n".join(f"file '{p.resolve()}'" for p in clip_paths), encoding="utf-8")
@@ -236,7 +350,8 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Noto Sans Devanagari,68,&H0000E5FF,&H00FFFFFF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,5,3,2,55,55,270,1
+Style: Default,Noto Sans Devanagari,68,&H0000EAFF,&H00FFFFFF,&H00000000,&HA0000000,-1,0,0,0,100,100,0,0,1,5,3,2,55,55,270,1
+Style: TitleBanner,Noto Sans Devanagari,82,&H0000D4FF,&H00FFFFFF,&H00120A3A,&HC0000000,-1,0,0,0,100,100,1,0,1,6,4,8,50,50,210,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -244,20 +359,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     ass_path.write_text(ass_header + "\n".join(ass_events), encoding="utf-8")
 
     bgm_wav = WORK_DIR / "bgm.wav"
-    generate_heavy_bgm(cursor + 0.5, mood, bgm_wav)
+    download_mood_bgm(music_mood, cursor + 0.5, bgm_wav)
+
     final_mp4 = WORK_DIR / "final_reel.mp4"
     subprocess.run(
         [
             "ffmpeg", "-y", "-i", str(merged_mp4), "-i", str(bgm_wav),
             "-filter_complex",
-            f"[0:v]ass='{ass_path.resolve()}'[vout];[0:a]volume=1.5[va];[1:a]volume=0.45[ba];[va][ba]amix=inputs=2:duration=first,loudnorm[aout]",
+            (
+                f"[0:v]ass='{ass_path.resolve()}'[vout];"
+                f"[0:a]asplit=2[vo_main][vo_sc];"
+                f"[1:a]volume=0.55[bgm_in];"
+                f"[bgm_in][vo_sc]sidechaincompress=threshold=0.02:ratio=6:attack=30:release=450[bgm_ducked];"
+                f"[vo_main][bgm_ducked]amix=inputs=2:duration=first,loudnorm[aout]"
+            ),
             "-map", "[vout]", "-map", "[aout]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(final_mp4),
         ],
         check=True,
     )
-    print(f"Final reel rendered: {final_mp4}")
+
+    if first_scene_img and first_scene_img.exists():
+        create_thumbnail(first_scene_img, title_text, WORK_DIR / "thumbnail.jpg")
+
+    print(f"Final reel rendered: {final_mp4} (duration ~{cursor:.1f}s)")
 
 
 if __name__ == "__main__":

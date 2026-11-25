@@ -109,5 +109,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_095543/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261125_105514",
+    "createdAt": "2026-11-25T10:55:14.662430+00:00",
+    "slot": "manual",
+    "mood": "vafadari",
+    "title": "वफ़ादारी के कसौटी",
+    "scriptDialogue": "हमार दिल के कसम, जवन वफ़ादारी के धागा बुनत रहे, ऊ कबहूँ टूटे ना। भाई के बियाह में जवन हम भरोसा कइले रहीं, उ अब हमनी से दूर होत बा। भइनी रोवे लागल, आँसू में देखनीं कि भरोसा टूटल बा, अब हम ओह पथर के सहारा बन जइब। हमर बात सुनऽ, ई वफ़ादारी के कसम केहू तोड़ ना सके, हम तोहनी के सामने साँच रखब। अपना जमीं के टुकड़ा देके हम कहब, साँच प्यार वफ़ादारी से ही पनपेला। भइनी के चेहरा प मुस्कान फइल गइल, दिल में फेर भरोसा जागल। जवन वफ़ादारी हम दिल में रखनी, ऊ आजु अँधिया में भी रौशनी बनके चमके।",
+    "caption": "का रउआँ कभी एही तरह के वफ़ादारी देखले बानी? नीचे कमेंट में आपन कहानी लिखीं!",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#DesiJazbaat",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Bhojpuri Star Movies",
+      "videoTitle": "Videshi Bahuriya | Foreign Bahuriya | Bhojpuri Full Movie 2026 | Family Drama | New Bhojpuri Film",
+      "videoUrl": "https://www.youtube.com/watch?v=GZqyOmrYzdc",
+      "viewsLabel": "19,780,495 views"
+    },
+    "gapAnalysis": [
+      "Reference में मिश्रित हिंदी‑हिंदी शब्द बा, हमनी ने शुद्ध भोजपुरी में बदलनी.",
+      "पिछला स्क्रिप्ट में सीन कनेक्शन कमजोर रहल, अब हर सीन के बीच तर्कसंगत प्रवाह जोड़ल गइल.",
+      "इफ़ेक्ट के अनुशासन नहीं रहल, अब 1‑6 सीन में smooth_zoom/pan_left/pan_right आ 7 में climax_shake दिहल गइल."
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_105514/final_reel.mp4"
   }
 ]

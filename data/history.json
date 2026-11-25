@@ -183,5 +183,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_132215/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261125_144340",
+    "createdAt": "2026-11-25T14:43:40.201541+00:00",
+    "slot": "manual",
+    "mood": "rangdari",
+    "title": "रंगदारी के जलवा 🔥💥",
+    "scriptDialogue": "देखऽ, ई रंग के झटका गाँव के चौक में फूटल बा, सबके मन में उधड़ाहट भर देले बा। हमार भाई के पेंटिंग पर तोहरा रंग के छींटा पड़ल, रउआ के मन में गुस्सा होई? तोहरा कहे के बा, जे रंग के रेंज में हमनी के सम्मान ना रहि जाई? अब देखऽ, हमनी के रंग के असली ताकत कइसे दिखाइब, बिना हाथी के बड़का डंडा के. अचानक, गाँव के बड़का बापू चमकीला नीला रंग लेके आइल, सबके दिल में शांति के बूँद गिरा दिहलस. ई नीला रंग के झलक से रउआ के दिल में ठंडक आ गइले, अब दुश्मनी के आग बुझ गइल. अब हमनी के रंग एक साथ मिल के नवका सूरज बनई, जे हर बुराई के जला देई!",
+    "caption": "रंगदारी के असली जादू देखलऽ, तोहरा के का लगल? 🔥💥",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#Rangdari",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Saregama Hum Bhojpuri",
+      "videoTitle": "Rangdar Se Sikh Rangdari | Ankita Singh | Smriti | Kunal | Rangdari Song | New Bhojpuri Song",
+      "videoUrl": "https://www.youtube.com/watch?v=lT6jLdifyA4",
+      "viewsLabel": "76,902,440 views"
+    },
+    "gapAnalysis": [
+      "Viral trigger & platform reach",
+      "Flaw in trending videos & how we beat it",
+      "Hashtag & climax strategy"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_144340/final_reel.mp4"
   }
 ]

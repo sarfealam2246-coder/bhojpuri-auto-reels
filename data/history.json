@@ -72,5 +72,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261124_222944/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261125_095543",
+    "createdAt": "2026-11-25T09:55:43.772391+00:00",
+    "slot": "manual",
+    "mood": "rangdari",
+    "title": "रंगदारी के रेत",
+    "scriptDialogue": "ए रेखा देखऽ, भाग्य के पतिया लिखल बा तोहरा बिना ई रस्ता सूना लागे, चलऽ, आज रात कुछ करे के बा कल रात के ट्रक में ढेर सारा पैसा बा, हमनी के ले लेब तोहरा देखके हमार सासु के याद आवत बा, अब काज ख़तम इहां के रेत से तोहरा के धकेल देब, समझलऽ हमरा असली काम एही बा, तोहरा सबके गिरफ़तारी तोहरा साँच सुनके दिल टुटल, बाकिर हम तोहरा से प्रेम करब",
+    "caption": "तोहरा मन में कवन रंग के कहानी बा? बतावऽ!",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#DesiJazbaat",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Amarjeet Akela Official",
+      "videoTitle": "VIDEO | बाबा देखीना हाथ के रेखा - Baba Dekhi Na Hath Ke Rekha |#Amarjeet Akela भोजपुरी सेड सोंग 2023",
+      "videoUrl": "https://www.youtube.com/watch?v=443pJ_BUObw",
+      "viewsLabel": "46,922,281 views"
+    },
+    "gapAnalysis": [
+      "Reference वीडियो में पृष्ठभूमि संगीत बहुत हल्का बा, जे रंगदारी के तेज माहौल से मेल नाहीं खाए; हम पूरा Reel में तीव्र इंटेंस एक्शन संगीत लगइले बानी",
+      "Reference में कहानी के स्पष्ट बिंदु नाहीं रहत, दर्शक घबड़ाए; हम 7 सीन वाला सघन कहानी बनवले बानी जेह में हुक, संघर्ष, मोड़ आ टwist बा",
+      "Reference में कैमरा मूवमेंट बार-बार पैन होत रहे, एकरस लागल; हम सीन‑वाइज smooth_zoom आ केवल दोहू क्लाइमैक्स में climax_shake लगइले बानी"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_095543/final_reel.mp4"
   }
 ]

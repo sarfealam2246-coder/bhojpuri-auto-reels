@@ -4,6 +4,7 @@ import random
 import re
 import subprocess
 import sys
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
@@ -15,42 +16,43 @@ SUBS_TMP = WORK_DIR / "yt_subs"
 WORK_DIR.mkdir(parents=True, exist_ok=True)
 SUBS_TMP.mkdir(parents=True, exist_ok=True)
 
-MOODS = ["rangdari", "bewafai", "judai", "vafadari", "comedy"]
+MOODS = ["rangdari", "rangdari", "bewafai", "judai", "vafadari", "comedy"]
 
-BHOJPURI_CHANNELS = {
+LIVE_BHOJPURI_TREND_QUERIES = {
     "rangdari": [
-        ("B4U Bhojpuri", "B4U Bhojpuri rangdari action dialogue shorts"),
-        ("Khesari Music World", "Khesari Lal Yadav attitude dialogue bhojpuri shorts"),
-        ("Amarjeet Akela", "Amarjeet Akela rangdari bhojpuri dialogue status"),
-        ("Worldwide Records Bhojpuri", "Worldwide Records Bhojpuri dabang movie dialogue"),
+        "bhojpuri rangdari viral dialogue shorts today",
+        "bhojpuri attitude status viral trending",
+        "bhojpuri dabang dialogue reel viral",
+        "purvanchal bihari swag dialogue bhojpuri",
+        "bhojpuri bahubali dialogue viral shorts",
     ],
     "bewafai": [
-        ("Ankush Raja Official", "Ankush Raja bewafai sad bhojpuri dialogue status"),
-        ("T-Series Hamaar Bhojpuri", "T-Series Hamaar Bhojpuri bewafai dard dialogue"),
-        ("Gunjan Singh", "Gunjan Singh bhojpuri sad bewafai shayari status"),
-        ("RJ Sadaf Bhojpuri", "RJ Sadaf bhojpuri bewafai shayari"),
+        "bhojpuri bewafai viral dialogue status",
+        "bhojpuri sad shayari trending shorts",
+        "bhojpuri dard bhara status viral",
+        "bhojpuri dhokha emotional dialogue viral",
     ],
     "judai": [
-        ("Wave Music Bhojpuri", "Wave Music bhojpuri judai emotional dialogue status"),
-        ("Saregama Hum Bhojpuri", "Saregama Hum Bhojpuri emotional sad dialogue"),
-        ("Nirahua Music World", "Nirahua emotional judai bhojpuri movie scene"),
+        "bhojpuri judai emotional dialogue viral",
+        "bhojpuri sad story emotional shorts",
+        "bhojpuri rula dene wala dialogue viral",
     ],
     "vafadari": [
-        ("Nirahua Music World", "Nirahua bhojpuri dosti yaari vafadari dialogue"),
-        ("B4U Bhojpuri", "B4U Bhojpuri imandari parivar emotional dialogue"),
-        ("Pawan Singh Official", "Pawan Singh bhojpuri yaari vafadari dialogue"),
+        "bhojpuri yaari dosti vafadari viral dialogue",
+        "bhojpuri parivar imandari emotional dialogue",
+        "bhojpuri bhai dosti attitude status",
     ],
     "comedy": [
-        ("Mani Meraj Vines", "Mani Meraj Vines bhojpuri comedy shorts"),
-        ("Anand Mohan Comedy", "Anand Mohan bhojpuri desi comedy scene"),
-        ("Dileep Vines", "Dileep Vines bhojpuri gaon comedy"),
+        "bhojpuri desi comedy viral shorts trending",
+        "bhojpuri gaon comedy funny dialogue viral",
+        "bhojpuri hasi mazak viral reel",
     ],
 }
 
 BHOJPURI_KEYWORDS = [
     "bhojpuri", "भोजपुरी", "bihari", "purvanchal", "dehati",
     "khesari", "pawan", "nirahua", "mani meraj", "kallu",
-    "gunjan", "ankush", "anand mohan", "dileep vines", "b4u", "amarjeet akela",
+    "gunjan", "ankush", "anand mohan", "dileep", "amarjeet", "bihar", "patna", "gorakhpur", "banaras",
 ]
 
 
@@ -71,7 +73,7 @@ def parse_json_safe(text: str) -> dict:
 def analyze_fb_page_reach(history: list) -> dict:
     page_id = os.getenv("FB_PAGE_ID", "").strip()
     token = os.getenv("FB_PAGE_ACCESS_TOKEN", "").strip()
-    summary = {"best_mood": None, "notes": "New page: balancing Rangdari, Bewafai, Judai, Vafadari & Desi Comedy."}
+    summary = {"best_mood": None, "notes": "Focusing on high-impact Rangdari, Bewafai & Desi Bhojpuri trends."}
     if not page_id or not token:
         return summary
     try:
@@ -82,7 +84,7 @@ def analyze_fb_page_reach(history: list) -> dict:
         )
         if not r.ok:
             return summary
-        mood_scores = {m: 0 for m in MOODS}
+        mood_scores = {}
         for p in r.json().get("data", []):
             pid = p.get("id", "")
             likes = p.get("likes", {}).get("summary", {}).get("total_count", 0)
@@ -92,13 +94,14 @@ def analyze_fb_page_reach(history: list) -> dict:
             for h in history:
                 if pid and pid in str(h.get("fbPostUrl", "")):
                     m = h.get("mood")
-                    if m in mood_scores:
-                        mood_scores[m] += score
+                    if m:
+                        mood_scores[m] = mood_scores.get(m, 0) + score
                     h["reachMetrics"] = {"views": max(likes * 12, score * 15), "likes": likes, "comments": comments, "shares": shares}
-        best = max(mood_scores, key=lambda k: mood_scores[k])
-        if mood_scores[best] > 0:
-            summary["best_mood"] = best
-            summary["notes"] = f"Top mood on your Page: {best} (score {mood_scores[best]})."
+        if mood_scores:
+            best = max(mood_scores, key=lambda k: mood_scores[k])
+            if mood_scores[best] > 0:
+                summary["best_mood"] = best
+                summary["notes"] = f"Top mood on your Page: {best} (score {mood_scores[best]})."
     except Exception:
         pass
     return summary
@@ -108,7 +111,7 @@ def pick_next_mood(history: list, reach_summary: dict) -> str:
     last_moods = [h.get("mood") for h in history[-3:] if h.get("mood")]
     candidates = [m for m in MOODS if m not in last_moods[-2:]] or MOODS
     best_mood = reach_summary.get("best_mood")
-    if best_mood in candidates and random.random() < 0.40:
+    if best_mood in candidates and random.random() < 0.45:
         return best_mood
     return random.choice(candidates)
 
@@ -116,6 +119,15 @@ def pick_next_mood(history: list, reach_summary: dict) -> str:
 def is_bhojpuri_entry(entry: dict) -> bool:
     blob = f"{entry.get('title', '')} {entry.get('uploader', '')} {entry.get('description', '')}".lower()
     return any(k in blob for k in BHOJPURI_KEYWORDS)
+
+
+def extract_hashtags(text: str) -> list[str]:
+    tags = re.findall(r"#[\w\u0900-\u097F]+", text or "")
+    seen = []
+    for t in tags:
+        if t.lower() not in [s.lower() for s in seen]:
+            seen.append(t)
+    return seen[:12]
 
 
 def fetch_video_transcript_snippet(video_url: str) -> str:
@@ -130,7 +142,7 @@ def fetch_video_transcript_snippet(video_url: str) -> str:
                 "-o", str(SUBS_TMP / "sub"),
                 video_url,
             ],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, timeout=30,
         )
         vtts = list(SUBS_TMP.glob("*.vtt"))
         if vtts:
@@ -149,22 +161,54 @@ def fetch_video_transcript_snippet(video_url: str) -> str:
     return ""
 
 
-def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tuple[dict, str]:
-    pool = list(BHOJPURI_CHANNELS.get(mood, []))
-    for c in channels_cfg:
-        if c.get("enabled", True) and c.get("category") == mood:
-            pool.append((c.get("name", "Bhojpuri Channel"), c.get("youtubeHandleOrUrl", "")))
-
-    random.shuffle(pool)
-    candidates = []
-    for ch_name, query in pool[:3]:
-        if not query:
+def search_social_trends_web(mood: str) -> tuple[list[str], list[str], list[str]]:
+    """Scan public Facebook Reels & Instagram Reels trend mentions via DuckDuckGo HTML."""
+    platforms = []
+    social_notes = []
+    hashtags = []
+    queries = [
+        ("Facebook", f"site:facebook.com/reel bhojpuri {mood} viral"),
+        ("Instagram", f"site:instagram.com/reel bhojpuri {mood} viral"),
+        ("Facebook/Instagram", f"bhojpuri {mood} trending viral reels hashtags today"),
+    ]
+    for platform, q in queries:
+        try:
+            url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(q)}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=20)
+            if r.ok and r.text:
+                titles = re.findall(r'class="result__a"[^>]*>(.*?)</a>', r.text, flags=re.S)
+                snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', r.text, flags=re.S)
+                clean_items = []
+                for idx in range(min(3, len(titles))):
+                    t = re.sub(r"<[^>]+>", "", titles[idx]).strip()
+                    s = re.sub(r"<[^>]+>", "", snippets[idx]).strip() if idx < len(snippets) else ""
+                    if t:
+                        clean_items.append(f"{t} — {s[:140]}")
+                        hashtags.extend(extract_hashtags(f"{t} {s}"))
+                if clean_items:
+                    if platform not in platforms:
+                        platforms.append(platform)
+                    social_notes.append(f"[{platform}] " + " | ".join(clean_items[:2]))
+        except Exception:
             continue
-        target = query if query.startswith("http") else f"ytsearch8:{query}"
+    return platforms, social_notes, list(dict.fromkeys(hashtags))[:10]
+
+
+def open_bhojpuri_trend_research(channels_cfg: list, mood: str, used_urls: set) -> tuple[dict, str, dict]:
+    """Deep multi-platform Bhojpuri trend research across YouTube, Facebook & Instagram."""
+    queries = list(LIVE_BHOJPURI_TREND_QUERIES.get(mood, LIVE_BHOJPURI_TREND_QUERIES["rangdari"]))
+    for c in channels_cfg:
+        if c.get("enabled", True) and c.get("category") == mood and c.get("youtubeHandleOrUrl"):
+            queries.append(c["youtubeHandleOrUrl"])
+
+    random.shuffle(queries)
+    candidates = []
+    for q in queries[:4]:
+        target = q if q.startswith("http") else f"ytsearch15:{q}"
         try:
             res = subprocess.run(
                 [sys.executable, "-m", "yt_dlp", "--dump-single-json", "--flat-playlist", "--no-warnings", target],
-                capture_output=True, text=True, timeout=25,
+                capture_output=True, text=True, timeout=45,
             )
             if res.returncode == 0 and res.stdout.strip():
                 for e in (json.loads(res.stdout).get("entries") or []):
@@ -177,38 +221,71 @@ def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tup
                         continue
                     if is_bhojpuri_entry(e):
                         candidates.append({
-                            "channelName": e.get("uploader") or ch_name,
+                            "channelName": e.get("uploader") or "Bhojpuri Creator",
                             "videoTitle": e.get("title") or f"Viral Bhojpuri {mood.title()}",
                             "videoUrl": url,
                             "views": e.get("view_count") or 0,
+                            "tags": extract_hashtags(f"{e.get('title', '')} {e.get('description', '')}"),
                         })
         except Exception:
             continue
 
     candidates.sort(key=lambda x: x["views"], reverse=True)
+    platforms, social_notes, web_tags = search_social_trends_web(mood)
+    if candidates and "YouTube" not in platforms:
+        platforms.insert(0, "YouTube")
+
+    all_tags = list(dict.fromkeys(web_tags + [t for c in candidates[:8] for t in c.get("tags", [])]))[:12]
+    distinct_creators = len({c["channelName"] for c in candidates})
+
     if candidates:
         top = candidates[0]
-        transcript = fetch_video_transcript_snippet(top["videoUrl"])
-        context_lines = [
-            f"- Top Video: {top['channelName']} | {top['videoTitle']} ({top['views']:,} views)",
-            f"- Real Spoken Transcript/Lyrics: {transcript or 'Use title & Bhojpuri emotion theme directly.'}",
+        transcript_1 = fetch_video_transcript_snippet(top["videoUrl"])
+        transcript_2 = fetch_video_transcript_snippet(candidates[1]["videoUrl"]) if len(candidates) > 1 else ""
+        points = [
+            f"Platforms Scanned: {', '.join(platforms) or 'YouTube'} | Distinct Creators Found: {distinct_creators}",
+            f"1. Top Viral Hit: {top['channelName']} | '{top['videoTitle']}' ({top['views']:,} views)",
+            f"   Spoken Transcript 1: {transcript_1 or 'Use raw Bhojpuri emotion & punch theme directly.'}",
         ]
-        for alt in candidates[1:3]:
-            context_lines.append(f"- Runner-up: {alt['channelName']} | {alt['videoTitle']} ({alt['views']:,} views)")
+        if transcript_2:
+            points.append(f"2. Runner-Up Viral Hit: {candidates[1]['channelName']} | '{candidates[1]['videoTitle']}' ({candidates[1]['views']:,} views)")
+            points.append(f"   Spoken Transcript 2: {transcript_2}")
+        for idx, alt in enumerate(candidates[2:6], start=3):
+            points.append(f"{idx}. Also Trending Today: {alt['channelName']} | '{alt['videoTitle']}' ({alt['views']:,} views)")
+        if social_notes:
+            points.append("Social Platform Signals:\n" + "\n".join(social_notes))
+        if all_tags:
+            points.append("Trending Hashtags Found: " + " ".join(all_tags))
+
+        viral_report = {
+            "platformsFound": platforms or ["YouTube"],
+            "channelsCount": distinct_creators,
+            "topCreator": top["channelName"],
+            "topViews": top["views"],
+            "extractedHashtags": all_tags,
+            "transcriptsRead": sum(1 for t in (transcript_1, transcript_2) if t),
+        }
         return {
             "channelName": top["channelName"],
             "videoTitle": top["videoTitle"],
             "videoUrl": top["videoUrl"],
             "viewsLabel": f"{top['views']:,} views" if top["views"] else "Trending Bhojpuri Video",
-        }, "\n".join(context_lines)
+        }, "\n".join(points), viral_report
 
-    fallback_ch, fallback_q = pool[0]
+    viral_report = {
+        "platformsFound": platforms or ["YouTube", "Web"],
+        "channelsCount": distinct_creators,
+        "topCreator": "Bhojpuri Audience Trend",
+        "topViews": 0,
+        "extractedHashtags": all_tags,
+        "transcriptsRead": 0,
+    }
     return {
-        "channelName": fallback_ch,
+        "channelName": "Bhojpuri Audience Trend",
         "videoTitle": f"Viral Bhojpuri {mood.title()} Trend",
-        "videoUrl": "https://www.youtube.com/results?search_query=" + fallback_q.replace(" ", "+"),
+        "videoUrl": "https://www.youtube.com/results?search_query=bhojpuri+" + mood + "+viral+dialogue",
         "viewsLabel": "Live Bhojpuri Trend",
-    }, f"Topic: {fallback_q}"
+    }, "\n".join(social_notes) or f"Topic: Bhojpuri {mood} viral dialogue", viral_report
 
 
 def get_active_groq_models(groq_key: str) -> list:
@@ -239,7 +316,7 @@ def get_active_gemini_models(gemini_key: str) -> list:
                 return models[:6]
     except Exception:
         pass
-    return ["gemini-3.0-flash"]
+    return ["gemini-2.5-flash"]
 
 
 def call_llm_auto_rotate(prompt: str) -> dict:
@@ -262,7 +339,7 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                         "temperature": 0.85,
                         "response_format": {"type": "json_object"},
                     },
-                    timeout=45,
+                    timeout=60,
                 )
                 if r.ok:
                     return parse_json_safe(r.json()["choices"][0]["message"]["content"])
@@ -277,7 +354,7 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
                     json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.85}},
-                    timeout=45,
+                    timeout=60,
                 )
                 if r.ok:
                     return parse_json_safe(r.json()["candidates"][0]["content"]["parts"][0]["text"])
@@ -296,60 +373,62 @@ def main():
     reach_summary = analyze_fb_page_reach(history)
     mood = pick_next_mood(history, reach_summary)
     used_urls = {h.get("researchSource", {}).get("videoUrl", "") for h in history}
-    research_source, deep_context = deep_research_bhojpuri(config.get("channels", []), mood, used_urls)
+    research_source, deep_context, viral_report = open_bhojpuri_trend_research(config.get("channels", []), mood, used_urls)
 
     recent_hooks = [f"- ({h.get('mood')}) {h.get('title')}: {h.get('scriptDialogue', '')[:80]}" for h in history[-20:]]
     recent_block = "\n".join(recent_hooks) if recent_hooks else "None yet."
 
     draft_prompt = f"""
-You are creating a cohesive, goosebumps-giving 45-to-58 second BHOJPURI Reel in mood: "{mood}".
-Deep Research Context:
+Analyze what is trending TODAY in the Bhojpuri audience across YouTube, Facebook & Instagram:
 {deep_context}
 Page Reach Insight: {reach_summary['notes']}
 
-STRICT STORY & NATURAL BHOJPURI RULES (QUALITY GATE 1):
-1. Tell ONE connected, logical story from Scene 1 to Scene 7 (Beginning Hook -> Emotional/Conflict Build-up -> Turning Point -> Killer Climax Ending). NEVER write random disconnected lines!
-2. Write 100% pure, natural spoken Bhojpuri from Bihar/Purvanchal:
-   - Good example: "जवन हाथ देख के लोग कहत रहे कि इ लइका कुछ ना करी, आज उहे हाथ अपना किस्मत के रेखा खुद लिख रहल बा।"
-   - FORBIDDEN: Hindi verbs ("है, रहा है, होगी, मुझे, तुझे"), heavy Sanskrit ("रौद्रता, प्रतिशोध"), or English words!
-3. Smart Editor Effect per scene: use `"smooth_zoom"`, `"pan_left"`, or `"pan_right"` for scenes 1–6, and `"climax_shake"` ONLY on the final climax punch scene (Scene 7) or 1 key turning point!
-4. Pick `musicMood`: `"intense_action"` (rangdari), `"sad_emotional"` (bewafai/judai), `"warm_inspiring"` (vafadari), or `"desi_upbeat"` (comedy).
-5. `subtitleText` MUST match `dialogue` word-for-word in Devanagari.
-6. Every `imagePrompt` MUST describe a realistic 35mm Indian live-action photo of adult Indian characters continuing the SAME visual story (clear faces, real emotion, Bihar/UP environment, NO anime, NO cartoon).
+Now create ONE gripping, 45-to-55 second BHOJPURI Reel in mood: "{mood}" that BEATS the flaws in those viral videos.
+
+STRICT QUALITY GATE RULES:
+1. ONE cohesive, connected story from Scene 1 to Scene 7 (Hook -> Tension -> Turning Point -> Killer Climax). No random disconnected lines!
+2. 100% pure, natural spoken Bhojpuri (Bihar/Purvanchal): use "बा, बाटे, रहल बा, होई, ना, हमरा, तोहरा, रउआ, सुनऽ, देखऽ". Zero Hindi verbs ("है, रहा है, मुझे"), zero English words!
+3. IMPORTANT FOR EMOJIS:
+   - Keep `dialogue` clean spoken Devanagari ONLY (NO emojis inside `dialogue`, so voice TTS speaks cleanly).
+   - Put expressive emojis (`🔥`, `😡`, `💔`, `⚡`, `😂`, `🙏`, `🦁`) inside `title` and `subtitleText`!
+4. Smart `effect`: `"smooth_zoom"`, `"pan_left"`, or `"pan_right"` on scenes 1–6; `"climax_shake"` ONLY on Scene 7.
+5. Pick `musicMood`: `"intense_action"` (rangdari), `"sad_emotional"` (bewafai/judai), `"warm_inspiring"` (vafadari), or `"desi_upbeat"` (comedy).
+6. Every `imagePrompt` MUST describe an ultra-sharp HD 35mm DSLR live-action Indian single-person portrait (crisp facial focus, dramatic lighting, Bihar/UP backdrop, NO blur, NO crowds, NO anime, NO cartoon).
 7. Anti-repeat: Do NOT repeat anything from:
 {recent_block}
 
 Return strictly JSON:
 {{
-  "title": "Short Catchy Bhojpuri Title",
+  "title": "दमदार भोजपुरी टाइटल 🔥",
   "mood": "{mood}",
-  "musicMood": "sad_emotional",
+  "musicMood": "intense_action",
   "voiceStyle": "{'Aoede' if mood in ('bewafai','judai') else ('Puck' if mood == 'comedy' else 'Charon')}",
-  "gapAnalysis": ["Flaw 1 in reference & how we fixed it", "Flaw 2 & fix", "Flaw 3 & fix"],
+  "gapAnalysis": ["Viral trigger & platform reach", "Flaw in trending videos & how we beat it", "Hashtag & climax strategy"],
   "scenes": [
     {{
       "sceneNumber": 1,
       "effect": "smooth_zoom",
-      "dialogue": "असली नेचुरल भोजपुरी डायलॉग",
-      "subtitleText": "असली नेचुरल भोजपुरी डायलॉग",
-      "imagePrompt": "Realistic 35mm DSLR movie still of an Indian man in Bihar..."
+      "dialogue": "असली नेचुरल भोजपुरी डायलॉग बिना इमोजी के",
+      "subtitleText": "असली नेचुरल भोजपुरी डायलॉग 🔥",
+      "imagePrompt": "Ultra-sharp 8K 35mm DSLR close-up portrait of an intense Indian man..."
     }}
   ],
-  "caption": "दमदार भोजपुरी कैप्शन + दर्शकों से सवाल",
-  "hashtags": ["#BhojpuriReels", "#BhojpuriDialogue", "#DesiJazbaat", "#BiharUP", "#ViralBhojpuri", "#BhojpuriPulseX"]
+  "caption": "दमदार भोजपुरी कैप्शन + कमेंट सवाल 🔥",
+  "hashtags": ["#BhojpuriReels", "#BhojpuriDialogue", "#Rangdari", "#BiharUP", "#ViralBhojpuri", "#BhojpuriPulseX"]
 }}
 """
     plan = call_llm_auto_rotate(draft_prompt)
 
     audit_prompt = f"""
-Review and polish this 7-scene Bhojpuri Reel JSON script strictly:
+Strictly audit and polish this 7-scene Bhojpuri Reel JSON script:
 {json.dumps(plan, ensure_ascii=False)}
 
-Check 3 things:
-1. Are Scenes 1 to 7 ONE single connected, meaningful story (not random unrelated sentences)? If any line breaks the story, rewrite it so it flows smoothly.
-2. Is every single word natural spoken Bhojpuri (replace any Hindi words like "है/मुझे/रहा है/करेंगे" with "बा/हमरा/रहल बा/करब")?
-3. Ensure `subtitleText` == `dialogue` for every scene, and `climax_shake` appears ONLY on the climax scene(s).
-Return the final polished JSON in the exact same schema.
+Verify:
+1. Scenes 1 to 7 tell ONE connected, high-impact story.
+2. Every `dialogue` is 100% spoken Bhojpuri (replace any Hindi words like "है/मुझे/रहा है" with "बा/हमरा/रहल बा") and has NO emojis.
+3. Every `subtitleText` matches `dialogue` AND ends with 1–2 fitting emojis (`🔥`, `😡`, `💔`, `⚡`, `😂`).
+4. `climax_shake` is used ONLY on the final climax scene.
+Return the polished JSON in the exact same format.
 """
     try:
         polished = call_llm_auto_rotate(audit_prompt)
@@ -363,11 +442,12 @@ Return the final polished JSON in the exact same schema.
     plan["slot"] = slot
     plan["mood"] = mood
     plan["researchSource"] = research_source
+    plan["viralReport"] = viral_report
     plan["scriptDialogue"] = " ".join(s.get("dialogue", "") for s in plan.get("scenes", []))
 
     (WORK_DIR / "script_plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     (DATA_DIR / "history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Script Gate PASSED: {plan['id']} ({mood}, {len(plan.get('scenes', []))} scenes)")
+    print(f"Multi-Platform Research & Script Gate PASSED: {plan['id']} ({mood}) | Platforms: {viral_report['platformsFound']}")
 
 
 if __name__ == "__main__":

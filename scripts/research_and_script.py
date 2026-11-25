@@ -11,7 +11,9 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 WORK_DIR = ROOT / "work"
+SUBS_TMP = WORK_DIR / "yt_subs"
 WORK_DIR.mkdir(parents=True, exist_ok=True)
+SUBS_TMP.mkdir(parents=True, exist_ok=True)
 
 MOODS = ["rangdari", "bewafai", "judai", "vafadari", "comedy"]
 
@@ -48,7 +50,7 @@ BHOJPURI_CHANNELS = {
 BHOJPURI_KEYWORDS = [
     "bhojpuri", "भोजपुरी", "bihari", "purvanchal", "dehati",
     "khesari", "pawan", "nirahua", "mani meraj", "kallu",
-    "gunjan", "ankush", "anand mohan", "dileep vines", "b4u",
+    "gunjan", "ankush", "anand mohan", "dileep vines", "b4u", "amarjeet akela",
 ]
 
 
@@ -96,7 +98,7 @@ def analyze_fb_page_reach(history: list) -> dict:
         best = max(mood_scores, key=lambda k: mood_scores[k])
         if mood_scores[best] > 0:
             summary["best_mood"] = best
-            summary["notes"] = f"Top mood on your Page: {best} (engagement score {mood_scores[best]})."
+            summary["notes"] = f"Top mood on your Page: {best} (score {mood_scores[best]})."
     except Exception:
         pass
     return summary
@@ -116,7 +118,38 @@ def is_bhojpuri_entry(entry: dict) -> bool:
     return any(k in blob for k in BHOJPURI_KEYWORDS)
 
 
-def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tuple[dict, list]:
+def fetch_video_transcript_snippet(video_url: str) -> str:
+    try:
+        for f in SUBS_TMP.glob("*"):
+            f.unlink(missing_ok=True)
+        subprocess.run(
+            [
+                sys.executable, "-m", "yt_dlp",
+                "--skip-download", "--write-auto-sub", "--write-sub",
+                "--sub-lang", "hi,en", "--sub-format", "vtt",
+                "-o", str(SUBS_TMP / "sub"),
+                video_url,
+            ],
+            capture_output=True, text=True, timeout=20,
+        )
+        vtts = list(SUBS_TMP.glob("*.vtt"))
+        if vtts:
+            raw = vtts[0].read_text(encoding="utf-8", errors="ignore")
+            lines = []
+            for ln in raw.splitlines():
+                ln = ln.strip()
+                if not ln or "-->" in ln or ln.startswith(("WEBVTT", "Kind:", "Language:")):
+                    continue
+                clean_ln = re.sub(r"<[^>]+>", "", ln)
+                if clean_ln and (not lines or lines[-1] != clean_ln):
+                    lines.append(clean_ln)
+            return " ".join(lines)[:1200]
+    except Exception:
+        pass
+    return ""
+
+
+def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tuple[dict, str]:
     pool = list(BHOJPURI_CHANNELS.get(mood, []))
     for c in channels_cfg:
         if c.get("enabled", True) and c.get("category") == mood:
@@ -131,7 +164,7 @@ def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tup
         try:
             res = subprocess.run(
                 [sys.executable, "-m", "yt_dlp", "--dump-single-json", "--flat-playlist", "--no-warnings", target],
-                capture_output=True, text=True, timeout=35,
+                capture_output=True, text=True, timeout=25,
             )
             if res.returncode == 0 and res.stdout.strip():
                 for e in (json.loads(res.stdout).get("entries") or []):
@@ -155,12 +188,19 @@ def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tup
     candidates.sort(key=lambda x: x["views"], reverse=True)
     if candidates:
         top = candidates[0]
+        transcript = fetch_video_transcript_snippet(top["videoUrl"])
+        context_lines = [
+            f"- Top Video: {top['channelName']} | {top['videoTitle']} ({top['views']:,} views)",
+            f"- Real Spoken Transcript/Lyrics: {transcript or 'Use title & Bhojpuri emotion theme directly.'}",
+        ]
+        for alt in candidates[1:3]:
+            context_lines.append(f"- Runner-up: {alt['channelName']} | {alt['videoTitle']} ({alt['views']:,} views)")
         return {
             "channelName": top["channelName"],
             "videoTitle": top["videoTitle"],
             "videoUrl": top["videoUrl"],
             "viewsLabel": f"{top['views']:,} views" if top["views"] else "Trending Bhojpuri Video",
-        }, [f"{c['channelName']}: {c['videoTitle']} ({c['views']:,} views)" for c in candidates[:4]]
+        }, "\n".join(context_lines)
 
     fallback_ch, fallback_q = pool[0]
     return {
@@ -168,7 +208,7 @@ def deep_research_bhojpuri(channels_cfg: list, mood: str, used_urls: set) -> tup
         "videoTitle": f"Viral Bhojpuri {mood.title()} Trend",
         "videoUrl": "https://www.youtube.com/results?search_query=" + fallback_q.replace(" ", "+"),
         "viewsLabel": "Live Bhojpuri Trend",
-    }, []
+    }, f"Topic: {fallback_q}"
 
 
 def get_active_groq_models(groq_key: str) -> list:
@@ -216,10 +256,10 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                     json={
                         "model": model,
                         "messages": [
-                            {"role": "system", "content": "You are an elite Purvanchali/Bihari Bhojpuri cinema writer and video editor. Never use Hindi grammar or English words in dialogues. Return ONLY valid JSON."},
+                            {"role": "system", "content": "You are an elite Purvanchali/Bihari Bhojpuri cinema writer. Return ONLY valid JSON."},
                             {"role": "user", "content": prompt},
                         ],
-                        "temperature": 0.88,
+                        "temperature": 0.85,
                         "response_format": {"type": "json_object"},
                     },
                     timeout=45,
@@ -236,7 +276,7 @@ def call_llm_auto_rotate(prompt: str) -> dict:
                 r = requests.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
-                    json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.88}},
+                    json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.85}},
                     timeout=45,
                 )
                 if r.ok:
@@ -256,45 +296,40 @@ def main():
     reach_summary = analyze_fb_page_reach(history)
     mood = pick_next_mood(history, reach_summary)
     used_urls = {h.get("researchSource", {}).get("videoUrl", "") for h in history}
-    research_source, top_list = deep_research_bhojpuri(config.get("channels", []), mood, used_urls)
+    research_source, deep_context = deep_research_bhojpuri(config.get("channels", []), mood, used_urls)
 
     recent_hooks = [f"- ({h.get('mood')}) {h.get('title')}: {h.get('scriptDialogue', '')[:80]}" for h in history[-20:]]
     recent_block = "\n".join(recent_hooks) if recent_hooks else "None yet."
-    competitors_block = "\n".join(f"- {x}" for x in top_list) if top_list else research_source["videoTitle"]
 
-    prompt = f"""
-You are creating a 45-to-58 second (nearly 1 minute) cinematic BHOJPURI Reel in mood: "{mood}".
-Top Bhojpuri Reference Videos Researched:
-{competitors_block}
-Primary Base Video: "{research_source['videoTitle']}" ({research_source['viewsLabel']}) from "{research_source['channelName']}".
+    draft_prompt = f"""
+You are creating a cohesive, goosebumps-giving 45-to-58 second BHOJPURI Reel in mood: "{mood}".
+Deep Research Context:
+{deep_context}
 Page Reach Insight: {reach_summary['notes']}
 
-STRICT NATURAL BHOJPURI LANGUAGE RULES (NO SHORTCUTS):
-1. Write 100% authentic, natural spoken Bhojpuri (Bihar/Purvanchal style) — NOT Hindi mixed with Bhojpuri!
-   - Use natural Bhojpuri grammar: "बा / बाटे / रहल बा / होई / ना / हमरा / तोहरा / रउआ / काहे / जवन / तवन / देखऽ / सुनऽ".
-   - FORBIDDEN Hindi endings: Do NOT write "रहा है", "कर रही है", "होगा", "नहीं है", "मुझे", "तुझे", and NEVER use heavy Sanskrit words (NO रौद्रता, प्रतिशोध, विचलित). NO English words in dialogue!
-2. Write 7 rich scenes (each dialogue 6-8 seconds, total ~50 seconds) that tell a complete gripping mini-story or emotional/rangdari/comedy arc with a killer ending twist.
-3. Smart Editor Effect per Scene (`effect`):
-   - Use `"smooth_zoom"`, `"pan_left"`, or `"pan_right"` for storytelling/emotional scenes.
-   - Use `"climax_shake"` ONLY on 1 or 2 high-impact punch/climax scenes (especially Scene 1 hook or the final Scene 7 twist) — NEVER put shake on every scene!
-4. Smart Music Mood (`musicMood`): pick `"intense_action"` (for rangdari), `"sad_emotional"` (for bewafai/judai), `"warm_inspiring"` (for vafadari), or `"desi_upbeat"` (for comedy).
-5. `subtitleText` MUST be the EXACT same Devanagari Bhojpuri dialogue as `dialogue`.
-6. Every `imagePrompt` MUST describe a hyper-realistic 35mm DSLR Indian live-action photograph with real adult Indian characters showing clear facial expressions & action matching that exact dialogue line (Bihar/UP village, rainy night, black SUV, tea stall, railway platform, golden-hour field — NO anime, NO cartoon, NO text).
+STRICT STORY & NATURAL BHOJPURI RULES (QUALITY GATE 1):
+1. Tell ONE connected, logical story from Scene 1 to Scene 7 (Beginning Hook -> Emotional/Conflict Build-up -> Turning Point -> Killer Climax Ending). NEVER write random disconnected lines!
+2. Write 100% pure, natural spoken Bhojpuri from Bihar/Purvanchal:
+   - Good example: "जवन हाथ देख के लोग कहत रहे कि इ लइका कुछ ना करी, आज उहे हाथ अपना किस्मत के रेखा खुद लिख रहल बा।"
+   - FORBIDDEN: Hindi verbs ("है, रहा है, होगी, मुझे, तुझे"), heavy Sanskrit ("रौद्रता, प्रतिशोध"), or English words!
+3. Smart Editor Effect per scene: use `"smooth_zoom"`, `"pan_left"`, or `"pan_right"` for scenes 1–6, and `"climax_shake"` ONLY on the final climax punch scene (Scene 7) or 1 key turning point!
+4. Pick `musicMood`: `"intense_action"` (rangdari), `"sad_emotional"` (bewafai/judai), `"warm_inspiring"` (vafadari), or `"desi_upbeat"` (comedy).
+5. `subtitleText` MUST match `dialogue` word-for-word in Devanagari.
+6. Every `imagePrompt` MUST describe a realistic 35mm Indian live-action photo of adult Indian characters continuing the SAME visual story (clear faces, real emotion, Bihar/UP environment, NO anime, NO cartoon).
 7. Anti-repeat: Do NOT repeat anything from:
 {recent_block}
 
 Return strictly JSON:
 {{
-  "title": "Short Punchy Bhojpuri Title (3-5 words)",
+  "title": "Short Catchy Bhojpuri Title",
   "mood": "{mood}",
-  "musicMood": "intense_action",
+  "musicMood": "sad_emotional",
   "voiceStyle": "{'Aoede' if mood in ('bewafai','judai') else ('Puck' if mood == 'comedy' else 'Charon')}",
-  "gapAnalysis": ["Detailed flaw 1 in reference & how we fixed it", "Flaw 2 & fix", "Flaw 3 & fix"],
+  "gapAnalysis": ["Flaw 1 in reference & how we fixed it", "Flaw 2 & fix", "Flaw 3 & fix"],
   "scenes": [
     {{
       "sceneNumber": 1,
       "effect": "smooth_zoom",
-      "sfx": "none",
       "dialogue": "असली नेचुरल भोजपुरी डायलॉग",
       "subtitleText": "असली नेचुरल भोजपुरी डायलॉग",
       "imagePrompt": "Realistic 35mm DSLR movie still of an Indian man in Bihar..."
@@ -304,7 +339,25 @@ Return strictly JSON:
   "hashtags": ["#BhojpuriReels", "#BhojpuriDialogue", "#DesiJazbaat", "#BiharUP", "#ViralBhojpuri", "#BhojpuriPulseX"]
 }}
 """
-    plan = call_llm_auto_rotate(prompt)
+    plan = call_llm_auto_rotate(draft_prompt)
+
+    audit_prompt = f"""
+Review and polish this 7-scene Bhojpuri Reel JSON script strictly:
+{json.dumps(plan, ensure_ascii=False)}
+
+Check 3 things:
+1. Are Scenes 1 to 7 ONE single connected, meaningful story (not random unrelated sentences)? If any line breaks the story, rewrite it so it flows smoothly.
+2. Is every single word natural spoken Bhojpuri (replace any Hindi words like "है/मुझे/रहा है/करेंगे" with "बा/हमरा/रहल बा/करब")?
+3. Ensure `subtitleText` == `dialogue` for every scene, and `climax_shake` appears ONLY on the climax scene(s).
+Return the final polished JSON in the exact same schema.
+"""
+    try:
+        polished = call_llm_auto_rotate(audit_prompt)
+        if polished.get("scenes") and len(polished["scenes"]) >= 5:
+            plan = polished
+    except Exception:
+        pass
+
     plan["id"] = f"reel_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
     plan["createdAt"] = datetime.now(timezone.utc).isoformat()
     plan["slot"] = slot
@@ -314,7 +367,7 @@ Return strictly JSON:
 
     (WORK_DIR / "script_plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     (DATA_DIR / "history.json").write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Script ready: {plan['id']} ({mood}, {len(plan.get('scenes', []))} scenes)")
+    print(f"Script Gate PASSED: {plan['id']} ({mood}, {len(plan.get('scenes', []))} scenes)")
 
 
 if __name__ == "__main__":

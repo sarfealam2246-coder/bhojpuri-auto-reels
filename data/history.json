@@ -257,5 +257,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261126_034138/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261126_130107",
+    "createdAt": "2026-11-26T13:01:07.235465+00:00",
+    "slot": "evening",
+    "mood": "comedy",
+    "title": "😂 बेजोड़ भोजपुरिया कॉमेडी 🔥",
+    "scriptDialogue": "देखऽ, हमार मोबाइल गायब बा, कवनो चोर आ गइल बा? रउआ देखलीं ना, ई मोबाइल कहाँ गइल, बतावऽ? फ़ोन में अजब हँसी वाला नोटिफिकेशन आवत बा, काहे एतना हँसी? तोहरा दोस्तन से पूछऽ, ई का गुप्त बात बा, हमरो बतावऽ ना! अरे! ई सब तोहरा बड़का भइया के जनमदिन के सरप्राइज़ बा, हमरो झूठे संदेह टूटल! चलऽ, हमरो शामिल हो जाई, सरप्राइज़ में हमनी के मस्त माहौल बनाइब! अब देखऽ, हमरे डांस से सबके ठहाका आई, बँधु लोग हँसी के फुहार में भीग जाई!",
+    "caption": "का रउआ लोगन के भी अइसन मज़ेदार सरप्राइज़ चाही? कमेंट में बतावऽ! 🔥",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriComedy",
+      "#DesiSwag",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Worldwide Records Bhojpuri",
+      "videoTitle": "#VIDEO SONG | Biyahawa Kara Da Ae Raja Ji #Shilpi Raj | Biyahawa Kara Da Raja Ji #BhojpuriSong 2021",
+      "videoUrl": "https://www.youtube.com/watch?v=yQ3WV3vIsbk",
+      "viewsLabel": "64,457,750 views"
+    },
+    "gapAnalysis": [
+      "Viral trigger & platform reach",
+      "Flaw in trending videos & how we beat it",
+      "Hashtag & climax strategy"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261126_130107/final_reel.mp4"
   }
 ]

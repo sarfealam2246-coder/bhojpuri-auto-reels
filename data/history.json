@@ -294,5 +294,43 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261126_130107/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261126_223210",
+    "createdAt": "2026-11-26T22:32:10.404744+00:00",
+    "slot": "evening",
+    "mood": "judai",
+    "title": "जुदाई के ज्वाला 🔥💔",
+    "scriptDialogue": "देखऽ, जवन रस्ता हमनी के साथ चलल रहे, ओह में अब खालीपन बाटे। हमर दिल के धड़कन रुकल बा, तोहरा बिन रात में अंधियारा छा गइल बा। रउआ याद के फुहार बहत बा, पर हम ना मानब, आगे बढ़ब। जवन वादा कइले रहीं, उ अब टूटल बा, पर हम तोहरा भरोसा ना छोड़ब। हमार आँसू के धारा बहत बा, लेकिन इ आँसू हमार ताकत बन रहल बा। अब समय आ गइल बा, हम अपना राह बनाइब, तोहरा बिना भी। जुदाई के आग हमके जला देले, लेकिन भीतर के शेर जाग उठल, अब हम जीतब!",
+    "caption": "जुदाई के दर्द के साथ रउआ के कइसे जीतल जाव? कमेंट में बताईं! 🔥",
+    "hashtags": [
+      "#judai",
+      "#BhojpuriReels",
+      "#SadSong",
+      "#Khesari",
+      "#PawanSingh",
+      "#BiharUP",
+      "#ViralBhojpuri"
+    ],
+    "researchSource": {
+      "channelName": "BIHARIWOOD - बिहारीवुड",
+      "videoTitle": "Judai Re - Khesari Lal Yadav - Anjana Singh - kajal Ragwani - Dabang Aashiq - Bhojpuri Songs 2016",
+      "videoUrl": "https://www.youtube.com/watch?v=LiAxnYyQoj0",
+      "viewsLabel": "126,932,967 views"
+    },
+    "gapAnalysis": [
+      "वायरल ट्रिगर आ प्लेटफॉर्म पहुंच",
+      "ट्रेंडिंग वीडियो में कमजोरी आ हम कइसे ओकरा से आगे बानी",
+      "हैशटैग आ क्लाइमैक्स रणनीति"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261126_223210/final_reel.mp4"
   }
 ]

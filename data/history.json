@@ -220,5 +220,42 @@
     },
     "fbPostUrl": null,
     "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261125_144340/final_reel.mp4"
+  },
+  {
+    "id": "reel_20261126_034138",
+    "createdAt": "2026-11-26T03:41:38.001262+00:00",
+    "slot": "manual",
+    "mood": "vafadari",
+    "title": "वफ़ादारी के कसौटी ⚡🔥",
+    "scriptDialogue": "सुनऽ! आजु रउआ देखबऽ एगो कहानी जवन वफ़ादारी के असली परख बा। हमार दोस्त पवन के भरोसा टूटल देखलऽ, ओकरे संग कवनो काम बा। तोहरा देखत हमार दिल में जलन उठल, काहे कि उ हमनी के साथ ना रहल बा। गाँव के चौक में सब बात पसरल बा, लोग कहत बाड़े कि हमनी के दोस्ती अब बची ना होई। लेकिन हमनी के वफ़ादारी के कसम याद बा, रउआ के साथ हम कबो ना छोड़ब। अब हम सब मिलके सच्चाई के उजागर करब, जेसे सबके भरोसा फेर से बन जाई। देखऽ, ई वफ़ादारी के ज्वाला अब फूट के सबके दिल में आग लगा देहले बा।",
+    "caption": "का रउआ भी वफ़ादारी के असली कसौटी देखल चाहब? कमेंट में बताईं! 🔥",
+    "hashtags": [
+      "#BhojpuriReels",
+      "#BhojpuriDialogue",
+      "#Rangdari",
+      "#BiharUP",
+      "#ViralBhojpuri",
+      "#BhojpuriPulseX"
+    ],
+    "researchSource": {
+      "channelName": "Purav Jha",
+      "videoTitle": "Making Of A Bhojpuri Film | Purav Jha",
+      "videoUrl": "https://www.youtube.com/watch?v=4oCkWizuxSc",
+      "viewsLabel": "23,469,134 views"
+    },
+    "gapAnalysis": [
+      "Viral trigger & platform reach",
+      "Flaw in trending videos & how we beat it",
+      "Hashtag & climax strategy"
+    ],
+    "status": {
+      "script": true,
+      "media": true,
+      "render": true,
+      "fbUpload": false,
+      "error": "FB_PAGE_ID or FB_PAGE_ACCESS_TOKEN not set in APK Vault yet."
+    },
+    "fbPostUrl": null,
+    "videoDownloadUrl": "https://github.com/sarfealam2246-coder/bhojpuri-auto-reels/releases/download/reel-reel_20261126_034138/final_reel.mp4"
   }
 ]
